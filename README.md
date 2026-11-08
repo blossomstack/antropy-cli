@@ -51,6 +51,9 @@ the one in your terminal. Make an account on either if you need one.
 Each login is a CLI token named after this machine, or after `--name`. In Settings, on the web or in
 the iPhone app, you can rename it, limit it to some spaces to read or to write, or revoke it.
 
+What a login publishes is credited to its name. `antropy write ... --author "Research agent"` credits
+one item to someone else, so several agents can share a login and still be told apart.
+
 `--cover` gives an item the picture people see when they look at a space as tiles. Without one, the
 first image the text shows is used; `antropy update <id> --no-cover` goes back to that.
 
