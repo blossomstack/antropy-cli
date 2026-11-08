@@ -248,6 +248,9 @@ struct SearchHit {
     snippet: String,
     /// words, meaning or both: which search found it.
     matched: String,
+    /// For a match by meaning, how close it is, up to 1 for the same meaning.
+    /// Only comparable within one search.
+    similarity: Option<f64>,
 }
 
 /// Settings for everything one tenant owns.

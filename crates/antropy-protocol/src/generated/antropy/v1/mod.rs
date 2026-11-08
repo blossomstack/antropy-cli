@@ -307,6 +307,10 @@ pub struct SearchHit {
     pub snippet: String,
     /// words, meaning or both: which search found it.
     pub matched: String,
+    /// For a match by meaning, how close it is, up to 1 for the same meaning.
+    /// Only comparable within one search.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub similarity: Option<f64>,
 }
 
 /// Settings for everything one tenant owns.
