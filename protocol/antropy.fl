@@ -1,0 +1,194 @@
+/// Everything the Antropy server and its apps send each other.
+///
+/// This file is the only description of the protocol. Rust and Swift are both
+/// generated from it, so a field added here reaches both sides or neither.
+/// All JSON keys are the field names exactly as written.
+package antropy.v1;
+
+/// One piece of content, without its text.
+struct ContentItem {
+    id: String,
+    /// What a person sees in a list.
+    name: String,
+    /// One line drawn from the start of the text.
+    summary: String,
+    /// markdown, text, json or html.
+    file_type: String,
+    /// The connection that published it, or a person's email address.
+    author: String,
+    tags: Vec<String>,
+    created_ms: u64,
+    updated_ms: u64,
+    /// Length of the text in bytes.
+    bytes: u64,
+    /// Rises whenever this item changes. Send it back to edit safely.
+    version: u64,
+    /// The sha256 of the stored text, in hex. Fetch it with a file pass.
+    body: String,
+    /// The images and recordings markdown text shows, each stored beside it.
+    media: Vec<MediaInfo>,
+}
+
+/// One image or recording a piece of markdown shows, as `![alt](name)`.
+struct MediaInfo {
+    /// What the text calls it.
+    name: String,
+    /// The sha256 of the stored file, in hex. Fetch it with a file pass.
+    body: String,
+    /// image/png, image/jpeg, image/gif, image/webp, audio/mpeg or audio/mp4.
+    media_type: String,
+    bytes: u64,
+    alt: String,
+}
+
+/// Lets one caller fetch stored files for a while: every file in a space, or
+/// one file for long enough to play it through.
+struct FilePass {
+    /// Send as `Authorization: Bearer <pass>`, or as `?verify=<pass>`.
+    pass: String,
+    /// Add a `body` hash to this to get its address.
+    files_url: String,
+    /// Ask for a new pass before this.
+    expires_ms: u64,
+}
+
+/// Files to be uploaded straight to storage before they are published.
+struct UploadRequest {
+    files: Vec<UploadFile>,
+}
+
+struct UploadFile {
+    /// The sha256 of the file, in hex.
+    sha256: String,
+    bytes: u64,
+}
+
+struct UploadLinks {
+    uploads: Vec<UploadLink>,
+}
+
+/// Where to PUT one file. Storage refuses any other bytes: send exactly
+/// `bytes` of them, with `x-amz-checksum-sha256: <checksum>`.
+struct UploadLink {
+    sha256: String,
+    url: String,
+    /// The sha256 in base64, the form the header takes.
+    checksum: String,
+    /// Start the upload before this.
+    expires_ms: u64,
+}
+
+/// A stored file the text names, uploaded beforehand.
+struct MediaRef {
+    /// What the text calls it, as in `![alt](name)`.
+    name: String,
+    /// The sha256 of the file, in hex.
+    body: String,
+}
+
+/// One piece of content together with its text.
+struct ContentDoc {
+    item: ContentItem,
+    text: String,
+}
+
+/// Every item in a space, and the version the list reflects.
+struct Listing {
+    space: String,
+    version: u64,
+    generated_ms: u64,
+    items: Vec<ContentItem>,
+}
+
+/// What changed in a space after some version.
+struct Changes {
+    space: String,
+    version: u64,
+    generated_ms: u64,
+    /// The answer would have had a hole in it, so take the whole listing.
+    full_refresh: bool,
+    items: Vec<ContentItem>,
+    /// Ids that are no longer there.
+    removed: Vec<String>,
+}
+
+/// Content to publish, its text and media uploaded first. A missing name or
+/// file type is worked out from the text.
+struct NewContent {
+    name: Option<String>,
+    file_type: Option<String>,
+    tags: Option<Vec<String>>,
+    /// The sha256 of the uploaded text, in hex.
+    body: String,
+    /// Every image or recording the text shows.
+    media: Option<Vec<MediaRef>>,
+}
+
+/// Fields to change. Anything left out keeps the value it has.
+struct ContentEdit {
+    name: Option<String>,
+    file_type: Option<String>,
+    tags: Option<Vec<String>>,
+    /// The sha256 of new uploaded text, in hex.
+    body: Option<String>,
+    /// Media the new text shows that the item does not have yet, or that
+    /// replaces what it has under the same name. Needs `body`.
+    media: Option<Vec<MediaRef>>,
+    /// The version the caller last read. The edit is refused if it has moved.
+    version: Option<u64>,
+}
+
+/// Who the caller is.
+struct Me {
+    email: String,
+}
+
+/// Somebody who can reach a space, and what they may do.
+struct SpaceMember {
+    email: String,
+    /// reader, writer or owner.
+    role: String,
+}
+
+/// A space to make. A missing name is taken from the slug.
+struct NewSpace {
+    slug: String,
+    name: Option<String>,
+}
+
+/// A space the caller can reach.
+struct SpaceSummary {
+    slug: String,
+    name: String,
+    /// reader, writer or owner.
+    role: String,
+}
+
+/// One change to a space, newest first.
+struct HistoryEntry {
+    version: u64,
+    at_ms: u64,
+    /// Who made the change.
+    who: String,
+    /// What they did, in words.
+    what: String,
+    /// Ids of the content this change touched.
+    content: Vec<String>,
+}
+
+// The sign-in token response is deliberately absent. Generated types go on
+// the wire as camelCase, but OAuth 2.0 requires access_token, token_type,
+// expires_in and refresh_token in snake_case, so that one shape is written by
+// hand on each side rather than generated into a standards violation.
+
+/// Why a request was refused.
+struct ApiError {
+    /// A short code: unauthorized, forbidden, not_found, bad_request,
+    /// conflict or internal.
+    error: String,
+    /// Wording a person can read.
+    message: String,
+    /// For a refused write, the version the content is at now, so the caller
+    /// can read it again and decide rather than retrying blindly.
+    version: Option<u64>,
+}
