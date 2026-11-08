@@ -23,6 +23,10 @@ pub struct ContentItem {
     pub body: String,
     /// The images and recordings markdown text shows, each stored beside it.
     pub media: Vec<crate::antropy::v1::MediaInfo>,
+    /// The picture to show for this item in a grid: the one chosen for it,
+    /// else the first image its text shows. None when it has neither.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover: Option<crate::antropy::v1::MediaInfo>,
 }
 
 /// One image or recording a piece of markdown shows, as `![alt](name)`.
@@ -144,6 +148,10 @@ pub struct NewContent {
     /// Every image or recording the text shows.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub media: Option<Vec<crate::antropy::v1::MediaRef>>,
+    /// The sha256 of an uploaded PNG, JPEG, GIF or WebP image to show for
+    /// this item in a grid. Left out, the first image the text shows is used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover: Option<String>,
 }
 
 /// Fields to change. Anything left out keeps the value it has.
@@ -163,6 +171,10 @@ pub struct ContentEdit {
     /// replaces what it has under the same name. Needs `body`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub media: Option<Vec<crate::antropy::v1::MediaRef>>,
+    /// The sha256 of an uploaded image to show for this item in a grid. An
+    /// empty string drops the chosen one, so the text's first image is used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover: Option<String>,
     /// The version the caller last read. The edit is refused if it has moved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<u64>,
@@ -173,6 +185,57 @@ pub struct ContentEdit {
 #[serde(rename_all = "camelCase")]
 pub struct Me {
     pub email: String,
+}
+
+/// Allows or denies a login a terminal started, by the code it shows. Only
+/// the iPhone app and a browser may send it, never a CLI login.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceAnswer {
+    /// As the terminal shows it, with or without the dash.
+    pub code: String,
+    pub allow: bool,
+}
+
+/// A command-line login: the CLI on one machine, or an agent using it. Only
+/// the iPhone app and a browser can see or change these, never a CLI login.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct CliToken {
+    pub id: String,
+    /// What it is called. Starts as the name of the machine that logged in.
+    pub name: String,
+    pub created_ms: u64,
+    /// When it last renewed its sign-in, which it does each hour it is used.
+    pub last_used_ms: u64,
+    /// True when it reaches every space its owner can, as far as the owner's
+    /// role allows. False when it reaches only `spaces`.
+    pub all_spaces: bool,
+    /// The spaces it may reach when it is limited to some.
+    pub spaces: Vec<crate::antropy::v1::TokenSpace>,
+}
+
+/// One space a CLI token may reach, and how far. Never further than the
+/// owner's own role.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenSpace {
+    pub slug: String,
+    /// read or write.
+    pub access: String,
+}
+
+/// Fields to change on a CLI token. Anything left out keeps its value.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct CliTokenEdit {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub all_spaces: Option<bool>,
+    /// Every space it may reach while limited. Replaces the list it had.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spaces: Option<Vec<crate::antropy::v1::TokenSpace>>,
 }
 
 /// Somebody who can reach a space, and what they may do.

@@ -1,6 +1,6 @@
 //! What the wire actually looks like. These are the facts both sides rely on.
 
-use antropy_protocol::{ContentEdit, ContentItem, FilePass, MediaInfo, NewContent};
+use antropy_protocol::{CliToken, ContentEdit, ContentItem, FilePass, MediaInfo, NewContent};
 
 #[test]
 fn keys_go_out_as_camel_case() {
@@ -20,6 +20,7 @@ fn keys_go_out_as_camel_case() {
             media_type: "image/png".into(),
             ..Default::default()
         }],
+        cover: None,
     };
     let json = serde_json::to_string(&item).unwrap();
     for key in ["fileType", "createdMs", "updatedMs", "mediaType"] {
@@ -71,4 +72,17 @@ fn a_snake_case_key_is_ignored_rather_than_refused() {
     assert!(edit.file_type.is_none(), "snake_case is silently dropped");
     let ok: ContentEdit = serde_json::from_str(r#"{"fileType":"text"}"#).unwrap();
     assert_eq!(ok.file_type.as_deref(), Some("text"));
+}
+
+#[test]
+fn a_cli_token_is_camel_case_too() {
+    let json = serde_json::to_string(&CliToken {
+        all_spaces: true,
+        ..Default::default()
+    })
+    .unwrap();
+    for key in ["allSpaces", "lastUsedMs", "createdMs"] {
+        assert!(json.contains(key), "{json}");
+    }
+    assert!(!json.contains("all_spaces"), "{json}");
 }
