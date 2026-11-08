@@ -19,6 +19,7 @@ const EXAMPLES: &str = "\
 Examples:
   antropy login --name \"build box\"  log in, and name the token
   antropy space use team            work in that space from now on
+  antropy search pricing tiers      best matches first, with the passage
   antropy list --tag research       ids and summaries, narrowed by tag
   antropy read 7f3a2b               the whole text of one item
   antropy write \"Pricing study\" --file study.md --tags research,pricing
@@ -45,10 +46,11 @@ use std::path::{Path, PathBuf};
 /// shows the ones you can reach. `antropy whoami` says whether this machine is
 /// logged in at all, and `antropy login` is what fixes it if not.
 ///
-/// To read: `antropy list` gives every item with its id and a one-line summary,
-/// `--tag <tag>` narrows it, and `antropy read <id>` prints the whole text.
-/// `--json` on any command prints the raw answer instead, which is easier to
-/// pick apart than the lines meant for people.
+/// To read: `antropy search <words>` is the quickest way to what you are after,
+/// best match first. `antropy list` gives every item with its id and a one-line
+/// summary, `--tag <tag>` narrows it, and `antropy read <id>` prints the whole
+/// text of one. `--json` on any command prints the raw answer instead, which is
+/// easier to pick apart than the lines meant for people.
 ///
 /// To write: `antropy write "<name>" --file <path>` publishes, and it is live
 /// the moment it goes in — nothing is held for review. `antropy update <id>

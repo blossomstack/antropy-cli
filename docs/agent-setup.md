@@ -128,7 +128,8 @@ set up again:
 Finished work goes to Antropy, in the `<space>` space. Run `antropy guide` before publishing, and
 `antropy --help` for the commands.
 
-- `antropy list` and `antropy read <id>` to see what is already there.
+- `antropy search <words>` to find something, best match first; `antropy list` for everything, and
+  `antropy read <id>` for the whole text of one.
 - `antropy write "<name>" --file <path> --tags <a,b>` to publish. Always pass `--file`: with no
   file it waits on standard input and hangs.
 - `antropy update <id> --file <path>` to change something. If it is refused because somebody
