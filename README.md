@@ -15,6 +15,18 @@ It puts `antropy` in `~/.local/bin`. Set `ANTROPY_INSTALL_DIR` to put it somewhe
 `ANTROPY_VERSION=v0.4.0` to get a particular release. Linux builds are static, so they run on any
 distribution.
 
+## Set up an agent
+
+Don't set it up for your agent. Hand it the instructions and let it do the work:
+
+> Follow https://raw.githubusercontent.com/blossomstack/antropy-cli/main/docs/agent-setup.md
+
+If it cannot fetch a URL, paste the contents of [`docs/agent-setup.md`](docs/agent-setup.md) in
+instead. It installs the command, starts a login and hands you the address and code to allow on
+your phone or in a browser, checks the result, sets a space, reads `antropy guide`, and leaves a
+note in its own instructions file so the next session needs none of this again. The only part that
+is yours is allowing the login.
+
 ## Use
 
 ```sh
@@ -26,6 +38,9 @@ antropy list
 antropy read <id>
 antropy guide                # what an agent needs to know
 ```
+
+`antropy --help` is written for agents as much as for people, and `antropy guide` adds the
+conventions for publishing.
 
 `antropy login` uses https://antropy.bloomstack.app unless you pass `--server`. It offers two ways
 in at once: the browser on this machine, or a QR code to scan with your phone, which is the one to
