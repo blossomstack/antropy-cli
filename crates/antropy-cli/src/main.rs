@@ -7,7 +7,7 @@ mod media;
 
 use antropy_protocol::{
     ContentDoc, ContentEdit, ContentItem, HistoryEntry, Listing, Me, MediaRef, NewContent,
-    NewSpace, SpaceMember, SpaceSummary, UploadFile, UploadLinks, UploadRequest,
+    NewSpace, SearchResults, SpaceMember, SpaceSummary, UploadFile, UploadLinks, UploadRequest,
 };
 use clap::{Parser, Subcommand};
 
@@ -62,6 +62,21 @@ enum Command {
         /// Show only what carries this tag.
         #[arg(long)]
         tag: Option<String>,
+    },
+    /// Find content by what it says, best first, with the passage that matched.
+    ///
+    /// Where search by meaning is on, it also finds content that says the
+    /// same thing in other words.
+    Search {
+        /// The words to look for.
+        #[arg(required = true, num_args = 1..)]
+        query: Vec<String>,
+        /// How many results to show, at most 50.
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+        /// Match the words only, the meaning only, or both.
+        #[arg(long, default_value = "both", value_parser = ["words", "meaning", "both"])]
+        mode: String,
     },
     /// Print one piece of content.
     Read {
@@ -378,6 +393,40 @@ async fn run(cli: Cli) -> Result<(), String> {
             } else {
                 for item in &listing.items {
                     println!("{}  {}: {}", item.id, item.name, item.summary);
+                }
+            }
+        }
+        Command::Search { query, limit, mode } => {
+            let slug = space(&cli.space, &client)?;
+            let url = client.url(&["api", "spaces", &slug, "search"])?;
+            let query = query.join(" ");
+            let limit = limit.to_string();
+            let found: SearchResults = client
+                .fetch(Method::GET, url, |r| {
+                    r.query(&[("q", &query), ("limit", &limit), ("mode", &mode)])
+                })
+                .await?;
+            if json_out {
+                println!("{}", pretty(&found)?);
+            } else {
+                if found.indexed_version < found.version {
+                    eprintln!(
+                        "Recent changes are still being indexed; they match by name only for now."
+                    );
+                }
+                if found.hits.is_empty() {
+                    eprintln!("Nothing matches.");
+                }
+                for hit in &found.hits {
+                    let how = if hit.matched == "meaning" {
+                        "  (similar meaning)"
+                    } else {
+                        ""
+                    };
+                    println!("{}  {}{how}", hit.item.id, hit.item.name);
+                    if !hit.snippet.is_empty() {
+                        println!("    {}", hit.snippet);
+                    }
                 }
             }
         }
