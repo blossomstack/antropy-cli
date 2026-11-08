@@ -15,12 +15,14 @@ fn keys_go_out_as_camel_case() {
         updated_ms: 2,
         bytes: 3,
         version: 4,
+        content_version: 4,
         body: "hash".into(),
         media: vec![MediaInfo {
             media_type: "image/png".into(),
             ..Default::default()
         }],
         cover: None,
+        read: None,
     };
     let json = serde_json::to_string(&item).unwrap();
     for key in ["fileType", "createdMs", "updatedMs", "mediaType"] {

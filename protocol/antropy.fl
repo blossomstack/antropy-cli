@@ -23,6 +23,9 @@ struct ContentItem {
     bytes: u64,
     /// Rises whenever this item changes. Send it back to edit safely.
     version: u64,
+    /// Rises only when its text changes, not its name, tags or cover. Unique
+    /// within its space; pages are ordered by it, newest first.
+    content_version: u64,
     /// The sha256 of the stored text, in hex. Fetch it with a file pass.
     body: String,
     /// The images and recordings markdown text shows, each stored beside it.
@@ -30,6 +33,9 @@ struct ContentItem {
     /// The picture to show for this item in a grid: the one chosen for it,
     /// else the first image its text shows. None when it has neither.
     cover: Option<MediaInfo>,
+    /// Whether the person asking has read it since its text last changed.
+    /// Left out for the CLI, and wherever nobody in particular is asking.
+    read: Option<bool>,
 }
 
 /// One image or recording a piece of markdown shows, as `![alt](name)`.
@@ -101,6 +107,32 @@ struct Listing {
     version: u64,
     generated_ms: u64,
     items: Vec<ContentItem>,
+}
+
+/// Part of a space, newest content first, with what the person asking has
+/// read. Ask for the next part with `before` set to `next`.
+struct ContentPage {
+    space: String,
+    /// The space's version when this was made.
+    version: u64,
+    generated_ms: u64,
+    items: Vec<ContentItem>,
+    /// The `contentVersion` to ask for items before. None at the end.
+    next: Option<u64>,
+}
+
+/// Content versions from `from` to `to`, both included.
+struct ReadRange {
+    from: u64,
+    to: u64,
+}
+
+/// What a person has read or wants to read again, by content version. Ranges
+/// may cover versions no item holds any more; versions not given out yet are
+/// never marked.
+struct ReadMarks {
+    read: Option<Vec<ReadRange>>,
+    unread: Option<Vec<u64>>,
 }
 
 /// What changed in a space after some version.

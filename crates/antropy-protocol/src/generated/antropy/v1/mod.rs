@@ -19,6 +19,9 @@ pub struct ContentItem {
     pub bytes: u64,
     /// Rises whenever this item changes. Send it back to edit safely.
     pub version: u64,
+    /// Rises only when its text changes, not its name, tags or cover. Unique
+    /// within its space; pages are ordered by it, newest first.
+    pub content_version: u64,
     /// The sha256 of the stored text, in hex. Fetch it with a file pass.
     pub body: String,
     /// The images and recordings markdown text shows, each stored beside it.
@@ -27,6 +30,10 @@ pub struct ContentItem {
     /// else the first image its text shows. None when it has neither.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<crate::antropy::v1::MediaInfo>,
+    /// Whether the person asking has read it since its text last changed.
+    /// Left out for the CLI, and wherever nobody in particular is asking.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read: Option<bool>,
 }
 
 /// One image or recording a piece of markdown shows, as `![alt](name)`.
@@ -116,6 +123,41 @@ pub struct Listing {
     pub version: u64,
     pub generated_ms: u64,
     pub items: Vec<crate::antropy::v1::ContentItem>,
+}
+
+/// Part of a space, newest content first, with what the person asking has
+/// read. Ask for the next part with `before` set to `next`.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentPage {
+    pub space: String,
+    /// The space's version when this was made.
+    pub version: u64,
+    pub generated_ms: u64,
+    pub items: Vec<crate::antropy::v1::ContentItem>,
+    /// The `contentVersion` to ask for items before. None at the end.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next: Option<u64>,
+}
+
+/// Content versions from `from` to `to`, both included.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadRange {
+    pub from: u64,
+    pub to: u64,
+}
+
+/// What a person has read or wants to read again, by content version. Ranges
+/// may cover versions no item holds any more; versions not given out yet are
+/// never marked.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadMarks {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read: Option<Vec<crate::antropy::v1::ReadRange>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unread: Option<Vec<u64>>,
 }
 
 /// What changed in a space after some version.
