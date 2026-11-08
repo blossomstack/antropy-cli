@@ -1,4 +1,7 @@
-//! Browser login: OAuth authorization code with PKCE and a local callback.
+//! Login, two ways at once, whichever finishes first:
+//! - a browser on this machine: OAuth authorization code with PKCE and a local callback;
+//! - any other device, such as a phone scanning the QR code: OAuth device login
+//!   (RFC 8628), for when no browser here can reach the local callback.
 
 use crate::config::Config;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -7,13 +10,28 @@ use rand::Rng;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::io::IsTerminal;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use url::Url;
 
 pub const CLIENT_ID: &str = "antropy-cli";
-const WAIT: Duration = Duration::from_secs(300);
+const WAIT: Duration = Duration::from_secs(600);
+const DEVICE_GRANT: &str = "urn:ietf:params:oauth:grant-type:device_code";
+
+#[derive(Deserialize)]
+struct Device {
+    device_code: String,
+    user_code: String,
+    verification_uri_complete: String,
+    interval: u64,
+}
+
+#[derive(Deserialize)]
+struct GrantError {
+    error: String,
+}
 
 #[derive(Deserialize)]
 pub struct Tokens {
@@ -70,8 +88,121 @@ async fn callback(listener: &TcpListener) -> Result<HashMap<String, String>, Str
     Ok(url.query_pairs().into_owned().collect())
 }
 
+/// Starts a device login. `None` when the server doesn't offer one, so the
+/// browser login still works against it.
+async fn start_device(http: &reqwest::Client, server: &str) -> Option<Device> {
+    let res = http
+        .post(format!("{server}/oauth/device"))
+        .form(&[("client_id", CLIENT_ID)])
+        .send()
+        .await
+        .ok()?;
+    res.status().is_success().then_some(())?;
+    res.json().await.ok()
+}
+
+/// Asks until the device login is allowed, denied or gone.
+async fn poll_device(
+    http: &reqwest::Client,
+    server: &str,
+    device: &Device,
+) -> Result<Tokens, String> {
+    let mut interval = Duration::from_secs(device.interval.max(1));
+    loop {
+        tokio::time::sleep(interval).await;
+        let res = http
+            .post(format!("{server}/oauth/token"))
+            .form(&[
+                ("grant_type", DEVICE_GRANT),
+                ("device_code", &device.device_code),
+            ])
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+        if res.status().is_success() {
+            return res.json().await.map_err(|e| e.to_string());
+        }
+        let error = res.json::<GrantError>().await.map(|e| e.error);
+        match error.as_deref() {
+            Ok("authorization_pending") => {}
+            Ok("slow_down") => interval += Duration::from_secs(5),
+            Ok("access_denied") => return Err("the login was denied".into()),
+            Ok("expired_token") => {
+                return Err("the login code ran out; run `antropy login` again".into())
+            }
+            Ok(other) => return Err(format!("login failed: {other}")),
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+}
+
+/// Waits for the browser to come back to this machine, then trades its code.
+async fn browser_login(
+    http: &reqwest::Client,
+    server: &str,
+    listener: &TcpListener,
+    redirect: &str,
+    verifier: &str,
+    state: &str,
+) -> Result<Tokens, String> {
+    let query = callback(listener).await?;
+    if query.get("state").map(String::as_str) != Some(state) {
+        return Err("the login reply didn't match this login".into());
+    }
+    let code = query.get("code").ok_or("the login was not allowed")?;
+    let res = http
+        .post(format!("{server}/oauth/token"))
+        .form(&[
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("code_verifier", verifier),
+            ("redirect_uri", redirect),
+        ])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("login failed: {}", res.status()));
+    }
+    res.json().await.map_err(|e| e.to_string())
+}
+
+/// Two terminal rows per line of text, each cell coloured explicitly black or
+/// white, so the code scans the same on a dark terminal as on a light one.
+pub fn qr(text: &str) -> Option<String> {
+    use qrcode::{Color, EcLevel, QrCode};
+    const QUIET: usize = 2;
+    let code = QrCode::with_error_correction_level(text, EcLevel::L).ok()?;
+    let width = code.width();
+    let colors = code.to_colors();
+    let size = width + 2 * QUIET;
+    let dark = |x: usize, y: usize| {
+        x >= QUIET
+            && y >= QUIET
+            && x < width + QUIET
+            && y < width + QUIET
+            && colors[(y - QUIET) * width + (x - QUIET)] == Color::Dark
+    };
+    let mut out = String::new();
+    for y in (0..size).step_by(2) {
+        for x in 0..size {
+            // The upper half block takes the foreground colour, the lower half the background.
+            let fg = if dark(x, y) { 30 } else { 97 };
+            let bg = if dark(x, y + 1) && y + 1 < size {
+                40
+            } else {
+                107
+            };
+            out.push_str(&format!("\x1b[{fg};{bg}m\u{2580}"));
+        }
+        out.push_str("\x1b[0m\n");
+    }
+    Some(out)
+}
+
 pub async fn login(config: &mut Config, server: &str) -> Result<(), String> {
     let server = server.trim_end_matches('/');
+    let http = reqwest::Client::new();
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .map_err(|e| e.to_string())?;
@@ -91,37 +222,58 @@ pub async fn login(config: &mut Config, server: &str) -> Result<(), String> {
         ],
     )
     .map_err(|e| e.to_string())?;
+    let device = start_device(&http, server).await;
 
     println!("Open this address to log in:\n{url}");
+    if let Some(device) = &device {
+        println!(
+            "\nOr log in from your phone. Scan this, or open the address below and enter the code:"
+        );
+        if std::io::stdout().is_terminal() {
+            if let Some(code) = qr(&device.verification_uri_complete) {
+                print!("{code}");
+            }
+        }
+        println!("{}", device.verification_uri_complete);
+        println!("Code: {}", device.user_code);
+    }
     open_browser(url.as_str());
 
-    let query = tokio::time::timeout(WAIT, callback(&listener))
-        .await
-        .map_err(|_| "gave up waiting for the browser".to_owned())??;
-    if query.get("state") != Some(&state) {
-        return Err("the login reply didn't match this login".into());
-    }
-    let code = query.get("code").ok_or("the login was not allowed")?;
+    let browser = browser_login(&http, server, &listener, &redirect, &verifier, &state);
+    let phone = async {
+        match &device {
+            Some(device) => poll_device(&http, server, device).await,
+            None => std::future::pending().await,
+        }
+    };
+    let tokens = tokio::time::timeout(WAIT, async {
+        tokio::select! {
+            tokens = browser => tokens,
+            tokens = phone => tokens,
+        }
+    })
+    .await
+    .map_err(|_| "gave up waiting for the login".to_owned())??;
 
-    let res = reqwest::Client::new()
-        .post(format!("{server}/oauth/token"))
-        .form(&[
-            ("grant_type", "authorization_code"),
-            ("code", code),
-            ("code_verifier", &verifier),
-            ("redirect_uri", &redirect),
-        ])
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !res.status().is_success() {
-        return Err(format!("login failed: {}", res.status()));
-    }
-    let tokens: Tokens = res.json().await.map_err(|e| e.to_string())?;
     config.server = Some(server.to_owned());
     config.access_token = Some(tokens.access_token);
     config.refresh_token = Some(tokens.refresh_token);
     config.save()?;
     println!("Logged in.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::qr;
+
+    #[test]
+    fn a_qr_code_is_square_and_ends_every_line_in_the_terminal_default() {
+        let code = qr("https://antropy.bloomstack.app/device?code=WDJB-MJHT").unwrap();
+        let lines: Vec<&str> = code.lines().collect();
+        let cells = lines[0].matches('\u{2580}').count();
+        assert_eq!(lines.len(), cells.div_ceil(2));
+        assert!(lines.iter().all(|l| l.matches('\u{2580}').count() == cells));
+        assert!(lines.iter().all(|l| l.ends_with("\x1b[0m")));
+    }
 }
