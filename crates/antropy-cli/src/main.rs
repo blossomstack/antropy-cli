@@ -45,6 +45,10 @@ enum Command {
         /// https://antropy.bloomstack.app.
         #[arg(long)]
         server: Option<String>,
+        /// What to call this login in your list of CLI tokens. Defaults to
+        /// this machine's name.
+        #[arg(long)]
+        name: Option<String>,
     },
     /// Forget this machine's login.
     Logout,
@@ -80,6 +84,10 @@ enum Command {
         /// The kind of text this is.
         #[arg(long = "type", value_parser = ["markdown", "text", "json", "html"])]
         file_type: Option<String>,
+        /// An image to show for it when a space is seen as tiles. Without
+        /// one, the first image the text shows is used.
+        #[arg(long)]
+        cover: Option<PathBuf>,
     },
     /// Change something already published.
     ///
@@ -99,6 +107,12 @@ enum Command {
         /// Replace its tags, separated by commas.
         #[arg(long, value_delimiter = ',')]
         tags: Option<Vec<String>>,
+        /// An image to show for it when a space is seen as tiles.
+        #[arg(long, conflicts_with = "no_cover")]
+        cover: Option<PathBuf>,
+        /// Drop its chosen cover, so the first image its text shows is used.
+        #[arg(long)]
+        no_cover: bool,
     },
     /// Remove one piece of content.
     Rm {
@@ -179,6 +193,13 @@ fn local_media(text: &str, file: Option<&Path>) -> Result<Vec<(String, Vec<u8>)>
         }
     }
     Ok(found)
+}
+
+/// Uploads a cover image and hands back its hash.
+async fn upload_cover(client: &mut Client, slug: &str, path: &Path) -> Result<String, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut hashes = upload(client, slug, vec![bytes]).await?;
+    Ok(hashes.remove(0))
 }
 
 fn sha256(bytes: &[u8]) -> String {
@@ -321,11 +342,12 @@ async fn run(cli: Cli) -> Result<(), String> {
     let mut client = Client::new(Config::load()?);
     let json_out = cli.json;
     match cli.command {
-        Command::Login { server } => {
+        Command::Login { server, name } => {
             let server = server
                 .or_else(|| client.config.server.clone())
                 .unwrap_or_else(|| DEFAULT_SERVER.to_owned());
-            login::login(&mut client.config, &server).await?;
+            let name = name.unwrap_or_else(login::machine_name);
+            login::login(&mut client.config, &server, &name).await?;
         }
         Command::Logout => {
             client.config.access_token = None;
@@ -375,6 +397,7 @@ async fn run(cli: Cli) -> Result<(), String> {
             file,
             tags,
             file_type,
+            cover,
         } => {
             let slug = space(&cli.space, &client)?;
             let text = match &file {
@@ -384,12 +407,17 @@ async fn run(cli: Cli) -> Result<(), String> {
                 ))?,
             };
             let (body, media) = upload_text(&mut client, &slug, text, file.as_deref(), &[]).await?;
+            let cover = match &cover {
+                Some(path) => Some(upload_cover(&mut client, &slug, path).await?),
+                None => None,
+            };
             let new = NewContent {
                 name: Some(name),
                 file_type,
                 tags,
                 body,
                 media,
+                cover,
             };
             let url = client.url(&["api", "spaces", &slug, "content"])?;
             let made: ContentItem = client.fetch(Method::POST, url, |r| r.json(&new)).await?;
@@ -404,6 +432,8 @@ async fn run(cli: Cli) -> Result<(), String> {
             file,
             name,
             tags,
+            cover,
+            no_cover,
         } => {
             let slug = space(&cli.space, &client)?;
             // Read before taking the new text, so the version sent covers the
@@ -415,10 +445,12 @@ async fn run(cli: Cli) -> Result<(), String> {
             let text = match &file {
                 Some(path) => Some(read_file(path)?),
                 // With nothing else named, the text is what is being changed.
-                None if name.is_none() && tags.is_none() => Some(read_stdin(&format!(
-                    "Changing {}. Type the new text, then press ctrl-d.",
-                    doc.item.name
-                ))?),
+                None if name.is_none() && tags.is_none() && cover.is_none() && !no_cover => {
+                    Some(read_stdin(&format!(
+                        "Changing {}. Type the new text, then press ctrl-d.",
+                        doc.item.name
+                    ))?)
+                }
                 None => None,
             };
             let held: Vec<String> = doc.item.media.iter().map(|m| m.body.clone()).collect();
@@ -430,11 +462,17 @@ async fn run(cli: Cli) -> Result<(), String> {
                 }
                 None => (None, None),
             };
+            let cover = match &cover {
+                Some(path) => Some(upload_cover(&mut client, &slug, path).await?),
+                None if no_cover => Some(String::new()),
+                None => None,
+            };
             let edit = ContentEdit {
                 name,
                 tags,
                 body,
                 media,
+                cover,
                 version: Some(doc.item.version),
                 ..Default::default()
             };

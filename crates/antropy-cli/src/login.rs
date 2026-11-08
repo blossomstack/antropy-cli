@@ -106,6 +106,7 @@ async fn poll_device(
     http: &reqwest::Client,
     server: &str,
     device: &Device,
+    name: &str,
 ) -> Result<Tokens, String> {
     let mut interval = Duration::from_secs(device.interval.max(1));
     loop {
@@ -115,6 +116,7 @@ async fn poll_device(
             .form(&[
                 ("grant_type", DEVICE_GRANT),
                 ("device_code", &device.device_code),
+                ("name", name),
             ])
             .send()
             .await
@@ -144,6 +146,7 @@ async fn browser_login(
     redirect: &str,
     verifier: &str,
     state: &str,
+    name: &str,
 ) -> Result<Tokens, String> {
     let query = callback(listener).await?;
     if query.get("state").map(String::as_str) != Some(state) {
@@ -157,6 +160,7 @@ async fn browser_login(
             ("code", code),
             ("code_verifier", verifier),
             ("redirect_uri", redirect),
+            ("name", name),
         ])
         .send()
         .await
@@ -200,7 +204,21 @@ pub fn qr(text: &str) -> Option<String> {
     Some(out)
 }
 
-pub async fn login(config: &mut Config, server: &str) -> Result<(), String> {
+/// What this login is called in the owner's list of CLI tokens, unless they
+/// pick a name: the machine's own, without the `.local` macOS adds.
+pub fn machine_name() -> String {
+    let named = std::process::Command::new("hostname")
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_owned());
+    match named {
+        Some(name) if !name.is_empty() => name.trim_end_matches(".local").to_owned(),
+        _ => "CLI login".to_owned(),
+    }
+}
+
+pub async fn login(config: &mut Config, server: &str, name: &str) -> Result<(), String> {
     let server = server.trim_end_matches('/');
     let http = reqwest::Client::new();
     let listener = TcpListener::bind("127.0.0.1:0")
@@ -239,10 +257,10 @@ pub async fn login(config: &mut Config, server: &str) -> Result<(), String> {
     }
     open_browser(url.as_str());
 
-    let browser = browser_login(&http, server, &listener, &redirect, &verifier, &state);
+    let browser = browser_login(&http, server, &listener, &redirect, &verifier, &state, name);
     let phone = async {
         match &device {
-            Some(device) => poll_device(&http, server, device).await,
+            Some(device) => poll_device(&http, server, device, name).await,
             None => std::future::pending().await,
         }
     };
@@ -259,7 +277,7 @@ pub async fn login(config: &mut Config, server: &str) -> Result<(), String> {
     config.access_token = Some(tokens.access_token);
     config.refresh_token = Some(tokens.refresh_token);
     config.save()?;
-    println!("Logged in.");
+    println!("Logged in as {name}. Rename it, limit it to some spaces or revoke it in Settings.");
     Ok(())
 }
 
