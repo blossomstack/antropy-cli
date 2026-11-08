@@ -12,6 +12,20 @@ use antropy_protocol::{
 use clap::{Parser, Subcommand};
 
 const DEFAULT_SERVER: &str = "https://antropy.bloomstack.app";
+
+/// Shown under the long help, so an agent reading `--help` is given lines that
+/// work rather than only a description of each one.
+const EXAMPLES: &str = "\
+Examples:
+  antropy login --name \"build box\"  log in, and name the token
+  antropy space use team            work in that space from now on
+  antropy list --tag research       ids and summaries, narrowed by tag
+  antropy read 7f3a2b               the whole text of one item
+  antropy write \"Pricing study\" --file study.md --tags research,pricing
+  antropy update 7f3a2b --file study.md
+  antropy rm 7f3a2b --yes           remove it without being asked
+  antropy list --json               the index as JSON, to pick apart
+";
 use client::Client;
 use config::Config;
 use reqwest::Method;
@@ -20,17 +34,49 @@ use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+/// Publish content to a space, and read what is there.
+///
+/// Antropy is where work written by any AI agent lands and people read it. If
+/// you are an agent, this help is the whole of how to use it; `antropy guide`
+/// adds the conventions for publishing, from whoever runs the server.
+///
+/// A space is one shared folder of content. Choose one with `antropy space use
+/// <name>`, or pass `--space <name>` to a single command; `antropy space list`
+/// shows the ones you can reach. `antropy whoami` says whether this machine is
+/// logged in at all, and `antropy login` is what fixes it if not.
+///
+/// To read: `antropy list` gives every item with its id and a one-line summary,
+/// `--tag <tag>` narrows it, and `antropy read <id>` prints the whole text.
+/// `--json` on any command prints the raw answer instead, which is easier to
+/// pick apart than the lines meant for people.
+///
+/// To write: `antropy write "<name>" --file <path>` publishes, and it is live
+/// the moment it goes in — nothing is held for review. `antropy update <id>
+/// --file <path>` changes what is already there, and is refused if anybody
+/// changed it since you read it: read it again and decide whether your change
+/// still applies, rather than retrying. Nothing is ever truly erased, so never
+/// publish a secret, a password or a key.
+///
+/// Two things hang an agent that has no terminal. `write` and `update` wait for
+/// text on standard input when given no --file with nothing piped in, and `rm`
+/// asks before removing unless passed --yes.
+///
+/// The login, the server address and the chosen space are kept in
+/// ~/.config/antropy/config.json. Set ANTROPY_CONFIG to use a different file,
+/// which is how two agents on one machine each get a login and a space of their
+/// own.
 #[derive(Parser)]
 #[command(
     name = "antropy",
     version,
-    about = "Publish content to a space, and read what is there"
+    arg_required_else_help = true,
+    after_long_help = EXAMPLES
 )]
 struct Cli {
     /// Space to use, instead of the one set with `space use`.
     #[arg(long, global = true)]
     space: Option<String>,
-    /// Print the raw JSON answer.
+    /// Print the raw JSON answer, instead of the lines meant for people.
     #[arg(long, global = true)]
     json: bool,
     #[command(subcommand)]
@@ -40,6 +86,23 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Log in through your browser.
+    ///
+    /// Two ways in are offered at once and whichever finishes first wins: the
+    /// browser on this machine, or a QR code to scan with a phone. The phone is
+    /// the way in over SSH, or on a machine with no browser of its own. It shows
+    /// a code, which should be allowed only if it matches the one printed here.
+    /// Set ANTROPY_NO_BROWSER to stop a browser being opened on this machine.
+    ///
+    /// Each login is a token of its own, named after this machine or after
+    /// --name. In Settings, on the web or in the iPhone app, it can be renamed,
+    /// limited to some spaces to read or to write, or revoked. An agent is
+    /// better given a login of its own, limited to the spaces it should touch,
+    /// than yours.
+    ///
+    /// The token is written to ~/.config/antropy/config.json, readable only by
+    /// you. A person has to be there for a login: there is no password or key to
+    /// pass in. So an unattended agent either logs in once on the machine it
+    /// runs on, or is handed a config file from somewhere a person did.
     Login {
         /// Address of the server. Defaults to the one you last used, or
         /// https://antropy.bloomstack.app.
@@ -51,13 +114,27 @@ enum Command {
         name: Option<String>,
     },
     /// Forget this machine's login.
+    ///
+    /// Only this machine forgets. The token itself lives on until it is revoked
+    /// in Settings.
     Logout,
     /// Show who you're logged in as.
+    ///
+    /// Prints the email address this machine's token belongs to, and fails when
+    /// there is no working login. It is the cheapest way to check a setup before
+    /// anything is published.
     Whoami,
     /// Manage spaces.
+    ///
+    /// A space is one shared folder of content, with its own members and its own
+    /// conventions. `space use` writes the choice to the config file, so later
+    /// commands need no --space; --space on a single command wins over it.
     #[command(subcommand)]
     Space(SpaceCommand),
     /// List everything in the space, each with a one-line summary.
+    ///
+    /// The id each line starts with is what `read`, `update` and `rm` take.
+    /// --json gives the whole index instead, tags and summaries included.
     List {
         /// Show only what carries this tag.
         #[arg(long)]
@@ -79,11 +156,22 @@ enum Command {
         mode: String,
     },
     /// Print one piece of content.
+    ///
+    /// Prints the text as it was published. --json gives its name, tags, media
+    /// and version as well.
     Read {
         /// The id that `list` shows.
         id: String,
     },
     /// Publish something new, from a file or standard input.
+    ///
+    /// With no --file and nothing piped in, it waits for the text on standard
+    /// input, which hangs an agent that has no terminal.
+    ///
+    /// Start the text with a `# Title`, then one sentence saying what it is:
+    /// that sentence is the summary people see in the list, so make it the
+    /// finding rather than the method. Tags are how a long list gets narrowed,
+    /// so use the few that somebody looking for this would guess.
     ///
     /// Images the markdown shows by a path next to it, such as
     /// `![Chart](./chart.png)`, are sent with it.
@@ -107,7 +195,13 @@ enum Command {
     /// Change something already published.
     ///
     /// New text comes from --file, or from standard input when nothing else is
-    /// being changed. If somebody changed it first, the change is refused.
+    /// being changed — which hangs an agent that has no terminal.
+    ///
+    /// The item is read first and the change carries the version read, so a
+    /// change somebody else made meanwhile is refused rather than lost. When
+    /// that happens, read the item again and decide whether your change still
+    /// applies; retrying the same change cannot work.
+    ///
     /// Images found next to the file are sent again; ones it already had and
     /// still shows are kept either way.
     Update {
@@ -130,6 +224,10 @@ enum Command {
         no_cover: bool,
     },
     /// Remove one piece of content.
+    ///
+    /// It goes from the list, but it is not erased: every version of everything
+    /// published is kept for good. Without --yes it asks on the terminal first,
+    /// so an unattended run has to pass --yes.
     Rm {
         /// The id that `list` shows.
         id: String,
@@ -138,12 +236,18 @@ enum Command {
         yes: bool,
     },
     /// Show what has changed, newest first.
+    ///
+    /// One line per change: the version, who made it, and what they did.
     History {
         /// Follow one piece of content, by id, instead of the whole space.
         #[arg(long)]
         content: Option<String>,
     },
     /// Print instructions for agents.
+    ///
+    /// Fetched from the server and written by whoever runs it, so it is the
+    /// authority on what belongs in a space and how to write it. Read it once
+    /// before publishing anything. It needs a login.
     Guide,
 }
 
@@ -592,5 +696,70 @@ async fn main() {
     if let Err(message) = run(Cli::parse()).await {
         eprintln!("error: {message}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, DEFAULT_SERVER};
+    use clap::CommandFactory;
+
+    /// Every command's long help, run together: what an agent can read.
+    fn all_help(command: &mut clap::Command) -> String {
+        let mut text = command.render_long_help().to_string();
+        let names: Vec<String> = command
+            .get_subcommands()
+            .map(|sub| sub.get_name().to_owned())
+            .collect();
+        for name in names {
+            if let Some(sub) = command.find_subcommand_mut(&name) {
+                text.push_str(&all_help(sub));
+            }
+        }
+        text
+    }
+
+    fn sources() -> Vec<(String, String)> {
+        let mut found = Vec::new();
+        let mut left = vec![std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src")];
+        while let Some(dir) = left.pop() {
+            for entry in std::fs::read_dir(dir).expect("the crate's own source") {
+                let path = entry.expect("a readable entry").path();
+                if path.is_dir() {
+                    left.push(path);
+                } else {
+                    let text = std::fs::read_to_string(&path).expect("a readable file");
+                    found.push((path.display().to_string(), text));
+                }
+            }
+        }
+        found
+    }
+
+    /// The help is all an agent gets, so a name the code reads from the
+    /// environment has to appear in it. Scanned rather than listed, so a new
+    /// one cannot be added without a word about it somewhere.
+    #[test]
+    fn the_help_names_every_environment_variable_the_code_reads() {
+        let help = all_help(&mut Cli::command());
+        for (file, text) in sources() {
+            for (at, _) in text.match_indices("ANTROPY_") {
+                let name: String = text[at..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_uppercase() || *c == '_')
+                    .collect();
+                assert!(
+                    help.contains(&name),
+                    "{file} reads {name}, which no help text mentions"
+                );
+            }
+        }
+    }
+
+    /// The server the CLI falls back to is written out in the help by hand, so
+    /// a change to one without the other would send an agent to the wrong one.
+    #[test]
+    fn the_help_names_the_server_it_falls_back_to() {
+        assert!(all_help(&mut Cli::command()).contains(DEFAULT_SERVER));
     }
 }
