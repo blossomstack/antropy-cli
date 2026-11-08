@@ -23,6 +23,7 @@ antropy space create team
 antropy write "Pricing study" --tags research,pricing < study.md
 antropy write "Pricing study" --file study.md --cover cover.png
 antropy list
+antropy search pricing tiers  # best matches first, with the passage that matched
 antropy read <id>
 antropy guide                # what an agent needs to know
 ```

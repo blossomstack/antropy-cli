@@ -280,6 +280,53 @@ pub struct HistoryEntry {
     pub content: Vec<String>,
 }
 
+/// What a search of one space found, best first.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResults {
+    pub space: String,
+    pub query: String,
+    /// The space's version now.
+    pub version: u64,
+    /// The version the search indexes reflect. While it is behind `version`,
+    /// the newest changes are found by name, summary and tags only; indexing
+    /// catches up within seconds.
+    pub indexed_version: u64,
+    /// Whether this search matched by meaning as well as by words.
+    pub meaning: bool,
+    pub hits: Vec<crate::antropy::v1::SearchHit>,
+}
+
+/// One item a search found.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    pub item: crate::antropy::v1::ContentItem,
+    /// Words from the text where it matched, without markup. Its summary when
+    /// only the name or tags matched.
+    pub snippet: String,
+    /// words, meaning or both: which search found it.
+    pub matched: String,
+}
+
+/// Settings for everything one tenant owns.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct TenantSettings {
+    /// Search finds content by what it means, not only by the words in it.
+    pub meaning_search: bool,
+    /// Whether this server can search by meaning at all.
+    pub meaning_search_available: bool,
+}
+
+/// Settings to change. Anything left out keeps the value it has.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct TenantSettingsEdit {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meaning_search: Option<bool>,
+}
+
 /// Why a request was refused.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]

@@ -225,6 +225,44 @@ struct HistoryEntry {
     content: Vec<String>,
 }
 
+/// What a search of one space found, best first.
+struct SearchResults {
+    space: String,
+    query: String,
+    /// The space's version now.
+    version: u64,
+    /// The version the search indexes reflect. While it is behind `version`,
+    /// the newest changes are found by name, summary and tags only; indexing
+    /// catches up within seconds.
+    indexed_version: u64,
+    /// Whether this search matched by meaning as well as by words.
+    meaning: bool,
+    hits: Vec<SearchHit>,
+}
+
+/// One item a search found.
+struct SearchHit {
+    item: ContentItem,
+    /// Words from the text where it matched, without markup. Its summary when
+    /// only the name or tags matched.
+    snippet: String,
+    /// words, meaning or both: which search found it.
+    matched: String,
+}
+
+/// Settings for everything one tenant owns.
+struct TenantSettings {
+    /// Search finds content by what it means, not only by the words in it.
+    meaning_search: bool,
+    /// Whether this server can search by meaning at all.
+    meaning_search_available: bool,
+}
+
+/// Settings to change. Anything left out keeps the value it has.
+struct TenantSettingsEdit {
+    meaning_search: Option<bool>,
+}
+
 // The sign-in token response is deliberately absent. Generated types go on
 // the wire as camelCase, but OAuth 2.0 requires access_token, token_type,
 // expires_in and refresh_token in snake_case, so that one shape is written by
