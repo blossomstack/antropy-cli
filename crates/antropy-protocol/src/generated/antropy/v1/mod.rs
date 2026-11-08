@@ -152,6 +152,10 @@ pub struct NewContent {
     /// this item in a grid. Left out, the first image the text shows is used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
+    /// Who to credit, such as the agent writing it. Left out, the CLI
+    /// token's name, or the person's email in a browser or the app.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
 }
 
 /// Fields to change. Anything left out keeps the value it has.

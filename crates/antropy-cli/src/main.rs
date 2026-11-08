@@ -193,6 +193,10 @@ enum Command {
         /// one, the first image the text shows is used.
         #[arg(long)]
         cover: Option<PathBuf>,
+        /// Who to credit, such as the agent writing it. Without it, the name
+        /// this login has in Settings.
+        #[arg(long)]
+        author: Option<String>,
     },
     /// Change something already published.
     ///
@@ -553,6 +557,7 @@ async fn run(cli: Cli) -> Result<(), String> {
             tags,
             file_type,
             cover,
+            author,
         } => {
             let slug = space(&cli.space, &client)?;
             let text = match &file {
@@ -573,6 +578,7 @@ async fn run(cli: Cli) -> Result<(), String> {
                 body,
                 media,
                 cover,
+                author,
             };
             let url = client.url(&["api", "spaces", &slug, "content"])?;
             let made: ContentItem = client.fetch(Method::POST, url, |r| r.json(&new)).await?;

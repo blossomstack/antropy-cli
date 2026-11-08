@@ -128,6 +128,9 @@ struct NewContent {
     /// The sha256 of an uploaded PNG, JPEG, GIF or WebP image to show for
     /// this item in a grid. Left out, the first image the text shows is used.
     cover: Option<String>,
+    /// Who to credit, such as the agent writing it. Left out, the CLI
+    /// token's name, or the person's email in a browser or the app.
+    author: Option<String>,
 }
 
 /// Fields to change. Anything left out keeps the value it has.
