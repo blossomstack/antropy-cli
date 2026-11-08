@@ -15,6 +15,7 @@ antropy-protocol = { path = "../antropy-protocol" }
 base64.workspace = true
 clap.workspace = true
 pulldown-cmark.workspace = true
+qrcode.workspace = true
 rand.workspace = true
 reqwest.workspace = true
 serde.workspace = true

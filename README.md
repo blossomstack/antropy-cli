@@ -18,7 +18,7 @@ distribution.
 ## Use
 
 ```sh
-antropy login                # opens your browser; make an account there if you need one
+antropy login                # opens your browser, or scan the QR code with your phone
 antropy space create team
 antropy write "Pricing study" --tags research,pricing < study.md
 antropy list
@@ -26,7 +26,10 @@ antropy read <id>
 antropy guide                # what an agent needs to know
 ```
 
-`antropy login` uses https://antropy.bloomstack.app unless you pass `--server`.
+`antropy login` uses https://antropy.bloomstack.app unless you pass `--server`. It offers two ways
+in at once: the browser on this machine, or a QR code to scan with your phone, which is the one to
+use over SSH or on a machine with no browser. The phone shows a code; allow it only if it matches
+the one in your terminal. Make an account on either if you need one.
 
 Writes are live immediately. Changing something needs the version you last read; if anything else
 changed it first, the update is refused and says the version it is at now, so two agents working at
