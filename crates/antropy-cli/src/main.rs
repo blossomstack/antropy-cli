@@ -18,7 +18,7 @@ const DEFAULT_SERVER: &str = "https://antropy.bloomstack.app";
 const EXAMPLES: &str = "\
 Examples:
   antropy login --name \"build box\"  log in, and name the token
-  antropy space use team            work in that space from now on
+  antropy space use team            work in that space from now on (a name or an id)
   antropy search pricing tiers      best matches first, with the passage
   antropy list --tag research       ids and summaries, narrowed by tag
   antropy read 7f3a2b               the whole text of one item
@@ -42,9 +42,11 @@ use std::path::{Path, PathBuf};
 /// you are an agent, this help is the whole of how to use it; `antropy guide`
 /// adds the conventions for publishing, from whoever runs the server.
 ///
-/// A space is one shared folder of content. Choose one with `antropy space use
-/// <name>`, or pass `--space <name>` to a single command; `antropy space list`
-/// shows the ones you can reach. `antropy whoami` says whether this machine is
+/// A space is one shared folder of content. Choose one by its name or its id
+/// with `antropy space use <name or id>`, or pass `--space <name or id>` to a
+/// single command; `antropy space list` shows the ones you can reach, each
+/// with its id. Spaces of different owners can share a name, and then only the
+/// id will do. `antropy whoami` says whether this machine is
 /// logged in at all, and `antropy login` is what fixes it if not.
 ///
 /// To read: `antropy search <words>` is the quickest way to what you are after,
@@ -80,7 +82,7 @@ use std::path::{Path, PathBuf};
     after_long_help = EXAMPLES
 )]
 struct Cli {
-    /// Space to use, instead of the one set with `space use`.
+    /// Space to use, by name or id, instead of the one set with `space use`.
     #[arg(long, global = true)]
     space: Option<String>,
     /// Print the raw JSON answer, instead of the lines meant for people.
@@ -288,9 +290,9 @@ enum Command {
 
 #[derive(Subcommand)]
 enum SpaceCommand {
-    /// List your spaces.
+    /// List your spaces, each with its id.
     List,
-    /// Create a space.
+    /// Create a space, and print its id.
     Create {
         /// A short name: lowercase letters, numbers and dashes.
         slug: String,
@@ -300,27 +302,68 @@ enum SpaceCommand {
     },
     /// Delete a space and everything in it.
     Delete {
-        /// A short name: lowercase letters, numbers and dashes.
-        slug: String,
+        /// The space's short name or its id.
+        space: String,
     },
     /// Show who can reach the space, and what they may do.
     Members,
     /// Set the space later commands use.
     Use {
-        /// A short name: lowercase letters, numbers and dashes.
-        slug: String,
+        /// The space's short name or its id. Spaces of different owners can
+        /// share a name; pass the id when they do.
+        space: String,
     },
 }
 
-/// Shapes the shared protocol does not cover yet. Each key is a single word,
-/// so the camelCase the wire uses cannot change them.
-fn space(chosen: &Option<String>, client: &Client) -> Result<String, String> {
-    chosen
+/// The id of the space chosen with --space or `space use`.
+async fn space(chosen: &Option<String>, client: &mut Client) -> Result<String, String> {
+    let wanted = chosen
         .clone()
         .or_else(|| client.config.space.clone())
         .ok_or_else(|| {
-            "no space chosen: pick one with `antropy space use <name>`, or pass --space".to_owned()
-        })
+            "no space chosen: pick one with `antropy space use <name or id>`, or pass --space"
+                .to_owned()
+        })?;
+    resolve(client, &wanted).await
+}
+
+/// Turns a space's name or id into its id. An id is taken as it is, without
+/// asking the server.
+async fn resolve(client: &mut Client, wanted: &str) -> Result<String, String> {
+    if is_space_id(wanted) {
+        return Ok(wanted.to_owned());
+    }
+    let spaces: Vec<SpaceSummary> = client.get(&["api", "spaces"]).await?;
+    pick(&spaces, wanted)
+}
+
+/// An id is 32 lowercase hex characters; a short name never is.
+fn is_space_id(wanted: &str) -> bool {
+    wanted.len() == 32
+        && wanted
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+fn pick(spaces: &[SpaceSummary], wanted: &str) -> Result<String, String> {
+    let found: Vec<&SpaceSummary> = spaces.iter().filter(|s| s.slug == wanted).collect();
+    match found.as_slice() {
+        [one] => Ok(one.id.clone()),
+        [] => Err(format!(
+            "no space named {wanted}: `antropy space list` shows the ones you can reach"
+        )),
+        many => {
+            let lines: Vec<String> = many
+                .iter()
+                .map(|s| format!("  {}  {}", s.id, s.name))
+                .collect();
+            Err(format!(
+                "{} spaces are named {wanted}; pass the id of the one you mean:\n{}",
+                many.len(),
+                lines.join("\n")
+            ))
+        }
+    }
 }
 
 fn pretty<T: Serialize>(value: &T) -> Result<String, String> {
@@ -360,9 +403,9 @@ fn recording_arg(
 }
 
 /// Uploads a file and hands back its hash.
-async fn upload_file(client: &mut Client, slug: &str, path: &Path) -> Result<String, String> {
+async fn upload_file(client: &mut Client, space_id: &str, path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut hashes = upload(client, slug, vec![bytes]).await?;
+    let mut hashes = upload(client, space_id, vec![bytes]).await?;
     Ok(hashes.remove(0))
 }
 
@@ -376,7 +419,7 @@ fn sha256(bytes: &[u8]) -> String {
 /// Uploads files straight to storage and hands back their hashes.
 async fn upload(
     client: &mut Client,
-    slug: &str,
+    space_id: &str,
     files: Vec<Vec<u8>>,
 ) -> Result<Vec<String>, String> {
     if files.is_empty() {
@@ -391,7 +434,7 @@ async fn upload(
             })
             .collect(),
     };
-    let url = client.url(&["api", "spaces", slug, "uploads"])?;
+    let url = client.url(&["api", "spaces", space_id, "uploads"])?;
     let links: UploadLinks = client
         .fetch(Method::POST, url, |r| r.json(&request))
         .await?;
@@ -407,7 +450,7 @@ async fn upload(
 /// already holds. Returns the text's hash and references to what was sent.
 async fn upload_text(
     client: &mut Client,
-    slug: &str,
+    space_id: &str,
     text: String,
     file: Option<&Path>,
     held: &[String],
@@ -418,7 +461,7 @@ async fn upload_text(
         .collect();
     let mut files = vec![text.into_bytes()];
     files.extend(media.iter().map(|(_, bytes)| bytes.clone()));
-    let mut hashes = upload(client, slug, files).await?.into_iter();
+    let mut hashes = upload(client, space_id, files).await?.into_iter();
     let body = hashes.next().expect("the text was uploaded");
     let refs: Vec<MediaRef> = media
         .into_iter()
@@ -463,28 +506,30 @@ async fn space_command(
                 println!("{}", pretty(&spaces)?);
             } else {
                 for one in &spaces {
-                    println!("{}  {}  ({})", one.slug, one.name, one.role);
+                    println!("{}  {}  {}  ({})", one.id, one.slug, one.name, one.role);
                 }
             }
         }
         SpaceCommand::Create { slug, name } => {
-            let body = NewSpace {
-                slug: slug.clone(),
-                name,
-            };
+            let body = NewSpace { slug, name };
             let url = client.url(&["api", "spaces"])?;
-            client.send(Method::POST, url, |r| r.json(&body)).await?;
-            println!("Created {slug}.");
+            let made: SpaceSummary = client.fetch(Method::POST, url, |r| r.json(&body)).await?;
+            if json_out {
+                println!("{}", pretty(&made)?);
+            } else {
+                println!("Created {} as {}.", made.slug, made.id);
+            }
         }
-        SpaceCommand::Delete { slug } => {
-            let url = client.url(&["api", "spaces", &slug])?;
+        SpaceCommand::Delete { space } => {
+            let space_id = resolve(client, &space).await?;
+            let url = client.url(&["api", "spaces", &space_id])?;
             client.send(Method::DELETE, url, |r| r).await?;
-            println!("Deleted {slug}.");
+            println!("Deleted {space}.");
         }
         SpaceCommand::Members => {
-            let slug = space(chosen, client)?;
+            let space_id = space(chosen, client).await?;
             let members: Vec<SpaceMember> =
-                client.get(&["api", "spaces", &slug, "members"]).await?;
+                client.get(&["api", "spaces", &space_id, "members"]).await?;
             if json_out {
                 println!("{}", pretty(&members)?);
             } else {
@@ -493,10 +538,15 @@ async fn space_command(
                 }
             }
         }
-        SpaceCommand::Use { slug } => {
-            client.config.space = Some(slug.clone());
+        SpaceCommand::Use { space } => {
+            let space_id = resolve(client, &space).await?;
+            client.config.space = Some(space_id.clone());
             client.config.save()?;
-            println!("Now using {slug}.");
+            if space_id == space {
+                println!("Now using {space_id}.");
+            } else {
+                println!("Now using {space} ({space_id}).");
+            }
         }
     }
     Ok(())
@@ -532,8 +582,8 @@ async fn run(cli: Cli) -> Result<(), String> {
             print!("{}", res.text().await.map_err(|e| e.to_string())?);
         }
         Command::List { tag } => {
-            let slug = space(&cli.space, &client)?;
-            let mut listing: Listing = client.get(&["api", "spaces", &slug, "index"]).await?;
+            let space_id = space(&cli.space, &mut client).await?;
+            let mut listing: Listing = client.get(&["api", "spaces", &space_id, "index"]).await?;
             if let Some(tag) = &tag {
                 listing.items.retain(|item| item.tags.contains(tag));
             }
@@ -550,8 +600,8 @@ async fn run(cli: Cli) -> Result<(), String> {
             }
         }
         Command::Search { query, limit, mode } => {
-            let slug = space(&cli.space, &client)?;
-            let url = client.url(&["api", "spaces", &slug, "search"])?;
+            let space_id = space(&cli.space, &mut client).await?;
+            let url = client.url(&["api", "spaces", &space_id, "search"])?;
             let query = query.join(" ");
             let limit = limit.to_string();
             let found: SearchResults = client
@@ -584,9 +634,9 @@ async fn run(cli: Cli) -> Result<(), String> {
             }
         }
         Command::Read { id } => {
-            let slug = space(&cli.space, &client)?;
+            let space_id = space(&cli.space, &mut client).await?;
             let doc: ContentDoc = client
-                .get(&["api", "spaces", &slug, "content", &id])
+                .get(&["api", "spaces", &space_id, "content", &id])
                 .await?;
             if json_out {
                 println!("{}", pretty(&doc)?);
@@ -604,7 +654,7 @@ async fn run(cli: Cli) -> Result<(), String> {
             audio,
             video,
         } => {
-            let slug = space(&cli.space, &client)?;
+            let space_id = space(&cli.space, &mut client).await?;
             let playing = recording_arg(audio, video);
             let text = match &file {
                 Some(path) => read_file(path)?,
@@ -616,13 +666,14 @@ async fn run(cli: Cli) -> Result<(), String> {
             let (file_type, recording) = match playing {
                 Some((kind, path)) => (
                     Some(kind.to_owned()),
-                    Some(upload_file(&mut client, &slug, &path).await?),
+                    Some(upload_file(&mut client, &space_id, &path).await?),
                 ),
                 None => (file_type, None),
             };
-            let (body, media) = upload_text(&mut client, &slug, text, file.as_deref(), &[]).await?;
+            let (body, media) =
+                upload_text(&mut client, &space_id, text, file.as_deref(), &[]).await?;
             let cover = match &cover {
-                Some(path) => Some(upload_file(&mut client, &slug, path).await?),
+                Some(path) => Some(upload_file(&mut client, &space_id, path).await?),
                 None => None,
             };
             let new = NewContent {
@@ -635,7 +686,7 @@ async fn run(cli: Cli) -> Result<(), String> {
                 recording,
                 author,
             };
-            let url = client.url(&["api", "spaces", &slug, "content"])?;
+            let url = client.url(&["api", "spaces", &space_id, "content"])?;
             let made: ContentItem = client.fetch(Method::POST, url, |r| r.json(&new)).await?;
             if json_out {
                 println!("{}", pretty(&made)?);
@@ -654,12 +705,12 @@ async fn run(cli: Cli) -> Result<(), String> {
             video,
         } => {
             let playing = recording_arg(audio, video);
-            let slug = space(&cli.space, &client)?;
+            let space_id = space(&cli.space, &mut client).await?;
             // Read before taking the new text, so the version sent covers the
             // whole time that text was being written and anyone else's change
             // in that time is refused instead of lost.
             let doc: ContentDoc = client
-                .get(&["api", "spaces", &slug, "content", &id])
+                .get(&["api", "spaces", &space_id, "content", &id])
                 .await?;
             let text = match &file {
                 Some(path) => Some(read_file(path)?),
@@ -681,20 +732,20 @@ async fn run(cli: Cli) -> Result<(), String> {
             let (body, media) = match text {
                 Some(text) => {
                     let (body, media) =
-                        upload_text(&mut client, &slug, text, file.as_deref(), &held).await?;
+                        upload_text(&mut client, &space_id, text, file.as_deref(), &held).await?;
                     (Some(body), media)
                 }
                 None => (None, None),
             };
             let cover = match &cover {
-                Some(path) => Some(upload_file(&mut client, &slug, path).await?),
+                Some(path) => Some(upload_file(&mut client, &space_id, path).await?),
                 None if no_cover => Some(String::new()),
                 None => None,
             };
             let (file_type, recording) = match playing {
                 Some((kind, path)) => (
                     Some(kind.to_owned()),
-                    Some(upload_file(&mut client, &slug, &path).await?),
+                    Some(upload_file(&mut client, &space_id, &path).await?),
                 ),
                 None => (None, None),
             };
@@ -708,7 +759,7 @@ async fn run(cli: Cli) -> Result<(), String> {
                 recording,
                 version: Some(doc.item.version),
             };
-            let url = client.url(&["api", "spaces", &slug, "content", &id])?;
+            let url = client.url(&["api", "spaces", &space_id, "content", &id])?;
             match client
                 .fetch::<ContentItem>(Method::PUT, url, |r| r.json(&edit))
                 .await
@@ -733,9 +784,9 @@ async fn run(cli: Cli) -> Result<(), String> {
             }
         }
         Command::Rm { id, yes } => {
-            let slug = space(&cli.space, &client)?;
+            let space_id = space(&cli.space, &mut client).await?;
             let doc: ContentDoc = client
-                .get(&["api", "spaces", &slug, "content", &id])
+                .get(&["api", "spaces", &space_id, "content", &id])
                 .await?;
             if !yes && !agreed(&doc.item.name)? {
                 println!("Left alone.");
@@ -743,15 +794,15 @@ async fn run(cli: Cli) -> Result<(), String> {
             }
             // The version just read, so a change made meanwhile is refused.
             let version = doc.item.version.to_string();
-            let url = client.url(&["api", "spaces", &slug, "content", &id])?;
+            let url = client.url(&["api", "spaces", &space_id, "content", &id])?;
             client
                 .send(Method::DELETE, url, |r| r.query(&[("version", &version)]))
                 .await?;
             println!("Removed {}.", doc.item.name);
         }
         Command::History { content } => {
-            let slug = space(&cli.space, &client)?;
-            let url = client.url(&["api", "spaces", &slug, "history"])?;
+            let space_id = space(&cli.space, &mut client).await?;
+            let url = client.url(&["api", "spaces", &space_id, "history"])?;
             let found: Vec<HistoryEntry> = client
                 .fetch(Method::GET, url, |r| match &content {
                     Some(id) => r.query(&[("content", id)]),
@@ -780,8 +831,43 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, DEFAULT_SERVER};
+    use super::{is_space_id, pick, Cli, DEFAULT_SERVER};
+    use antropy_protocol::SpaceSummary;
     use clap::CommandFactory;
+
+    fn summary(id: &str, slug: &str) -> SpaceSummary {
+        SpaceSummary {
+            id: id.to_owned(),
+            slug: slug.to_owned(),
+            name: slug.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn only_32_lowercase_hex_is_taken_as_an_id() {
+        assert!(is_space_id("0123456789abcdef0123456789abcdef"));
+        assert!(!is_space_id("0123456789ABCDEF0123456789ABCDEF"));
+        assert!(!is_space_id("0123456789abcdef0123456789abcde"));
+        assert!(!is_space_id("team"));
+    }
+
+    #[test]
+    fn a_name_picks_its_one_space_and_refuses_none_or_several() {
+        let a = "a".repeat(32);
+        let b = "b".repeat(32);
+        let spaces = [
+            summary(&a, "team"),
+            summary(&b, "team"),
+            summary(&b, "solo"),
+        ];
+        assert_eq!(pick(&spaces, "solo"), Ok(b.clone()));
+        assert!(pick(&spaces, "nobody")
+            .unwrap_err()
+            .contains("no space named"));
+        let several = pick(&spaces, "team").unwrap_err();
+        assert!(several.contains(&a) && several.contains(&b), "{several}");
+    }
 
     /// Every command's long help, run together: what an agent can read.
     fn all_help(command: &mut clap::Command) -> String {

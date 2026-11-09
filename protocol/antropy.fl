@@ -108,6 +108,7 @@ struct ContentDoc {
 
 /// Every item in a space, and the version the list reflects.
 struct Listing {
+    /// The space's id.
     space: String,
     version: u64,
     generated_ms: u64,
@@ -117,6 +118,7 @@ struct Listing {
 /// Part of a space, newest content first, with what the person asking has
 /// read. Ask for the next part with `before` set to `next`.
 struct ContentPage {
+    /// The space's id.
     space: String,
     /// The space's version when this was made.
     version: u64,
@@ -142,6 +144,7 @@ struct ReadMarks {
 
 /// What changed in a space after some version.
 struct Changes {
+    /// The space's id.
     space: String,
     version: u64,
     generated_ms: u64,
@@ -224,7 +227,8 @@ struct CliToken {
 /// One space a CLI token may reach, and how far. Never further than the
 /// owner's own role.
 struct TokenSpace {
-    slug: String,
+    /// The space's id.
+    id: String,
     /// read or write.
     access: String,
 }
@@ -252,6 +256,10 @@ struct NewSpace {
 
 /// A space the caller can reach.
 struct SpaceSummary {
+    /// What every request names it by. It never changes.
+    id: String,
+    /// A short name, unique among its owner's spaces. Only for showing and
+    /// for finding a space by name; requests use `id`.
     slug: String,
     name: String,
     /// reader, writer or owner.
@@ -272,6 +280,7 @@ struct HistoryEntry {
 
 /// What a search of one space found, best first.
 struct SearchResults {
+    /// The space's id.
     space: String,
     query: String,
     /// The space's version now.
@@ -298,17 +307,23 @@ struct SearchHit {
     similarity: Option<f64>,
 }
 
-/// Settings for everything one tenant owns.
-struct TenantSettings {
-    /// Search finds content by what it means, not only by the words in it.
-    meaning_search: bool,
-    /// Whether this server can search by meaning at all.
-    meaning_search_available: bool,
-}
-
-/// Settings to change. Anything left out keeps the value it has.
-struct TenantSettingsEdit {
-    meaning_search: Option<bool>,
+/// How much of its plan a tenant has used.
+struct Usage {
+    /// free or paid.
+    plan: String,
+    /// Writes this calendar month, UTC: new items and new text. Renames, tags,
+    /// covers and removals are free.
+    writes: u64,
+    writes_limit: u64,
+    /// Bytes stored, including files nothing uses any more until they have
+    /// been kept for `keep_days`.
+    bytes: u64,
+    bytes_limit: u64,
+    /// How long replaced and removed content is kept before it is deleted.
+    keep_days: u64,
+    /// When storage was last measured whole. Writes since are added as they
+    /// happen. None until the first measure.
+    measured_ms: Option<u64>,
 }
 
 // The sign-in token response is deliberately absent. Generated types go on
@@ -319,7 +334,7 @@ struct TenantSettingsEdit {
 /// Why a request was refused.
 struct ApiError {
     /// A short code: unauthorized, forbidden, not_found, bad_request,
-    /// conflict or internal.
+    /// conflict, write_limit, storage_full or internal.
     error: String,
     /// Wording a person can read.
     message: String,

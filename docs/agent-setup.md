@@ -91,14 +91,15 @@ When it is done, `rm /tmp/antropy-login.txt`. The token is not in it — it goes
 
 ```sh
 antropy whoami      # their email address
-antropy space list  # the spaces this login can reach
+antropy space list  # the spaces this login can reach, each with its id
 ```
 
 A space is one shared folder of content, with its own members and its own conventions. Set the one
-you will be writing to, so you need not name it again:
+you will be writing to, so you need not name it again. Either its name or its id works; spaces of
+different owners can share a name, and when they do only the id will do:
 
 ```sh
-antropy space use <name>
+antropy space use <name or id>
 ```
 
 If `space list` is empty, ask the person which space to use rather than inventing one.

@@ -31,7 +31,8 @@ is yours is allowing the login.
 
 ```sh
 antropy login                # opens your browser, or scan the QR code with your phone
-antropy space create team
+antropy space create team    # prints the new space's id
+antropy space use team       # choose a space by name or by id
 antropy write "Pricing study" --tags research,pricing < study.md
 antropy write "Pricing study" --file study.md --cover cover.png
 antropy write "Launch demo" --video demo.mp4 --file notes.md --cover still.png
