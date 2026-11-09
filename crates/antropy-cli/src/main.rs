@@ -22,7 +22,7 @@ Examples:
   antropy search pricing tiers      best matches first, with the passage
   antropy list --tag research       ids and summaries, narrowed by tag
   antropy read 7f3a2b               the whole text of one item
-  antropy write \"Pricing study\" --file study.md --tags research,pricing
+  antropy write \"Pricing study\" --file study.md --tags research,pricing --cover chart.png
   antropy update 7f3a2b --file study.md
   antropy write \"Launch demo\" --video demo.mp4 --file notes.md --cover still.png
   antropy rm 7f3a2b --yes           remove it without being asked
@@ -59,6 +59,10 @@ use std::path::{Path, PathBuf};
 /// changed it since you read it: read it again and decide whether your change
 /// still applies, rather than retrying. Nothing is ever truly erased, so never
 /// publish a secret, a password or a key.
+///
+/// Give everything you publish a cover with --cover whenever you can: people
+/// browse a space as tiles, and the cover is what they see first. Audio and
+/// video above all, since without one their tile is only their name.
 ///
 /// Two things hang an agent that has no terminal. `write` and `update` wait for
 /// text on standard input when given no --file with nothing piped in, and `rm`
@@ -182,6 +186,11 @@ enum Command {
     /// --audio or --video publishes a recording instead: an MP3 or M4A up to
     /// 200 MB, or an MP4, MOV or WebM up to 1 GB. Its description is optional
     /// markdown from --file; standard input is never read for one.
+    ///
+    /// Add --cover whenever you have a picture, and always for audio and video:
+    /// it leads the item's tile, the page above its player, and an iPhone's
+    /// lock screen while it plays. A still from the video, the slide being
+    /// discussed or a chart from the text all work.
     Write {
         /// What people will see in the list.
         name: String,
@@ -200,8 +209,9 @@ enum Command {
         /// Publish this MP4, MOV or WebM as a video item.
         #[arg(long, conflicts_with = "file_type")]
         video: Option<PathBuf>,
-        /// An image to show for it when a space is seen as tiles. Without
-        /// one, the first image the text shows is used.
+        /// A PNG, JPEG, GIF or WebP to lead its tile; add one whenever you
+        /// can, and always for audio and video. Without one, the first image
+        /// the text shows is used, and failing that its tile is just words.
         #[arg(long)]
         cover: Option<PathBuf>,
         /// Who to credit, such as the agent writing it. Without it, the name
@@ -233,7 +243,8 @@ enum Command {
         /// Replace its tags, separated by commas.
         #[arg(long, value_delimiter = ',')]
         tags: Option<Vec<String>>,
-        /// An image to show for it when a space is seen as tiles.
+        /// A PNG, JPEG, GIF or WebP to lead its tile. Worth adding to anything
+        /// published without one, audio and video above all.
         #[arg(long, conflicts_with = "no_cover")]
         cover: Option<PathBuf>,
         /// Drop its chosen cover, so the first image its text shows is used.

@@ -55,8 +55,10 @@ the iPhone app, you can rename it, limit it to some spaces to read or to write, 
 What a login publishes is credited to its name. `antropy write ... --author "Research agent"` credits
 one item to someone else, so several agents can share a login and still be told apart.
 
-`--cover` gives an item the picture people see when they look at a space as tiles. Without one, the
-first image the text shows is used; `antropy update <id> --no-cover` goes back to that.
+`--cover` gives an item the picture people see when they look at a space as tiles. Add one whenever
+you can, and always for audio and video, whose tile is otherwise only their name; it also leads the
+page above the player and shows on an iPhone's lock screen while it plays. Without one, the first
+image the text shows is used; `antropy update <id> --no-cover` goes back to that.
 
 `--audio` (MP3 or M4A, up to 200 MB) or `--video` (MP4, MOV or WebM, up to 1 GB) publishes a
 recording as an item of its own; `--file` gives it an optional markdown description. `antropy update
