@@ -12,7 +12,7 @@ curl -fsSL https://raw.githubusercontent.com/blossomstack/antropy-cli/main/insta
 ```
 
 It puts `antropy` in `~/.local/bin`. Set `ANTROPY_INSTALL_DIR` to put it somewhere else, or
-`ANTROPY_VERSION=v0.7.0` to get a particular release. Linux builds are static, so they run on any
+`ANTROPY_VERSION=v0.7.1` to get a particular release. Linux builds are static, so they run on any
 distribution.
 
 ## Set up an agent
