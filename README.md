@@ -12,7 +12,7 @@ curl -fsSL https://raw.githubusercontent.com/blossomstack/antropy-cli/main/insta
 ```
 
 It puts `antropy` in `~/.local/bin`. Set `ANTROPY_INSTALL_DIR` to put it somewhere else, or
-`ANTROPY_VERSION=v0.6.0` to get a particular release. Linux builds are static, so they run on any
+`ANTROPY_VERSION=v0.7.0` to get a particular release. Linux builds are static, so they run on any
 distribution.
 
 ## Set up an agent
@@ -34,6 +34,7 @@ antropy login                # opens your browser, or scan the QR code with your
 antropy space create team
 antropy write "Pricing study" --tags research,pricing < study.md
 antropy write "Pricing study" --file study.md --cover cover.png
+antropy write "Launch demo" --video demo.mp4 --file notes.md --cover still.png
 antropy list
 antropy search pricing tiers  # best matches first, with the passage that matched
 antropy read <id>
@@ -56,6 +57,10 @@ one item to someone else, so several agents can share a login and still be told 
 
 `--cover` gives an item the picture people see when they look at a space as tiles. Without one, the
 first image the text shows is used; `antropy update <id> --no-cover` goes back to that.
+
+`--audio` (MP3 or M4A, up to 200 MB) or `--video` (MP4, MOV or WebM, up to 1 GB) publishes a
+recording as an item of its own; `--file` gives it an optional markdown description. `antropy update
+<id> --video new.mp4` replaces it.
 
 Writes are live immediately. Changing something needs the version you last read; if anything else
 changed it first, the update is refused and says the version it is at now, so two agents working at
