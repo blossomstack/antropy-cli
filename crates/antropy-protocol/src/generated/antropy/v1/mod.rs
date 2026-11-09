@@ -125,6 +125,7 @@ pub struct ContentDoc {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct Listing {
+    /// The space's id.
     pub space: String,
     pub version: u64,
     pub generated_ms: u64,
@@ -136,6 +137,7 @@ pub struct Listing {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentPage {
+    /// The space's id.
     pub space: String,
     /// The space's version when this was made.
     pub version: u64,
@@ -170,6 +172,7 @@ pub struct ReadMarks {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct Changes {
+    /// The space's id.
     pub space: String,
     pub version: u64,
     pub generated_ms: u64,
@@ -279,7 +282,8 @@ pub struct CliToken {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenSpace {
-    pub slug: String,
+    /// The space's id.
+    pub id: String,
     /// read or write.
     pub access: String,
 }
@@ -319,6 +323,10 @@ pub struct NewSpace {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct SpaceSummary {
+    /// What every request names it by. It never changes.
+    pub id: String,
+    /// A short name, unique among its owner's spaces. Only for showing and
+    /// for finding a space by name; requests use `id`.
     pub slug: String,
     pub name: String,
     /// reader, writer or owner.
@@ -343,6 +351,7 @@ pub struct HistoryEntry {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResults {
+    /// The space's id.
     pub space: String,
     pub query: String,
     /// The space's version now.
@@ -372,22 +381,26 @@ pub struct SearchHit {
     pub similarity: Option<f64>,
 }
 
-/// Settings for everything one tenant owns.
+/// How much of its plan a tenant has used.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
-pub struct TenantSettings {
-    /// Search finds content by what it means, not only by the words in it.
-    pub meaning_search: bool,
-    /// Whether this server can search by meaning at all.
-    pub meaning_search_available: bool,
-}
-
-/// Settings to change. Anything left out keeps the value it has.
-#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
-#[serde(rename_all = "camelCase")]
-pub struct TenantSettingsEdit {
+pub struct Usage {
+    /// free or paid.
+    pub plan: String,
+    /// Writes this calendar month, UTC: new items and new text. Renames, tags,
+    /// covers and removals are free.
+    pub writes: u64,
+    pub writes_limit: u64,
+    /// Bytes stored, including files nothing uses any more until they have
+    /// been kept for `keep_days`.
+    pub bytes: u64,
+    pub bytes_limit: u64,
+    /// How long replaced and removed content is kept before it is deleted.
+    pub keep_days: u64,
+    /// When storage was last measured whole. Writes since are added as they
+    /// happen. None until the first measure.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub meaning_search: Option<bool>,
+    pub measured_ms: Option<u64>,
 }
 
 /// Why a request was refused.
@@ -395,7 +408,7 @@ pub struct TenantSettingsEdit {
 #[serde(rename_all = "camelCase")]
 pub struct ApiError {
     /// A short code: unauthorized, forbidden, not_found, bad_request,
-    /// conflict or internal.
+    /// conflict, write_limit, storage_full or internal.
     pub error: String,
     /// Wording a person can read.
     pub message: String,
