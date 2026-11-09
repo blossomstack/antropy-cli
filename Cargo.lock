@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "antropy-cli"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "antropy-protocol",
  "base64 0.22.1",
@@ -72,7 +72,7 @@ dependencies = [
 
 [[package]]
 name = "antropy-protocol"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "derive-new",
  "serde",
