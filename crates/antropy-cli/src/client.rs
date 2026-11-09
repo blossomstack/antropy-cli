@@ -113,6 +113,9 @@ impl Client {
             .http
             .put(&link.url)
             .header("x-amz-checksum-sha256", &link.checksum)
+            // Said outright: an empty body, such as no description, is
+            // otherwise sent without it, and R2 refuses that with 411.
+            .header(reqwest::header::CONTENT_LENGTH, bytes.len())
             .body(bytes)
             .send()
             .await
@@ -160,5 +163,49 @@ async fn check(res: Response) -> Result<Response, Refused> {
             version: body.version,
         }),
         _ => Err(format!("the server answered {status}").into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{BufRead, BufReader, Write};
+
+    /// R2 refuses a PUT that does not say its length, with 411.
+    #[tokio::test]
+    async fn an_empty_upload_still_says_its_length() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/put", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut length = None;
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line.trim().is_empty() {
+                    break;
+                }
+                if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = Some(value.trim().to_owned());
+                }
+            }
+            let status = if length.is_some() {
+                "200 OK"
+            } else {
+                "411 Length Required"
+            };
+            write!(&stream, "HTTP/1.1 {status}\r\ncontent-length: 0\r\n\r\n").unwrap();
+            length
+        });
+        let link = UploadLink {
+            url,
+            ..Default::default()
+        };
+        let sent = Client::new(Config::default())
+            .put_upload(&link, Vec::new())
+            .await;
+        assert_eq!(server.join().unwrap().as_deref(), Some("0"));
+        assert!(sent.is_ok());
     }
 }
