@@ -8,7 +8,8 @@ pub struct ContentItem {
     pub name: String,
     /// One line drawn from the start of the text.
     pub summary: String,
-    /// markdown, text, json or html.
+    /// markdown, text, json, html, audio or video. Audio and video play
+    /// `recording`, and their text is an optional markdown description.
     pub file_type: String,
     /// The connection that published it, or a person's email address.
     pub author: String,
@@ -19,7 +20,8 @@ pub struct ContentItem {
     pub bytes: u64,
     /// Rises whenever this item changes. Send it back to edit safely.
     pub version: u64,
-    /// Rises only when its text changes, not its name, tags or cover. Unique
+    /// Rises only when its text or recording changes, not its name, tags or
+    /// cover. Unique
     /// within its space; pages are ordered by it, newest first.
     pub content_version: u64,
     /// The sha256 of the stored text, in hex. Fetch it with a file pass.
@@ -30,6 +32,9 @@ pub struct ContentItem {
     /// else the first image its text shows. None when it has neither.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<crate::antropy::v1::MediaInfo>,
+    /// What an audio or video item plays. None for every other kind.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recording: Option<crate::antropy::v1::MediaInfo>,
     /// Whether the person asking has read it since its text last changed.
     /// Left out for the CLI, and wherever nobody in particular is asking.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,7 +49,8 @@ pub struct MediaInfo {
     pub name: String,
     /// The sha256 of the stored file, in hex. Fetch it with a file pass.
     pub body: String,
-    /// image/png, image/jpeg, image/gif, image/webp, audio/mpeg or audio/mp4.
+    /// image/png, image/jpeg, image/gif, image/webp, audio/mpeg, audio/mp4,
+    /// video/mp4, video/quicktime or video/webm.
     pub media_type: String,
     pub bytes: u64,
     pub alt: String,
@@ -175,7 +181,7 @@ pub struct Changes {
 }
 
 /// Content to publish, its text and media uploaded first. A missing name or
-/// file type is worked out from the text.
+/// file type is worked out from the text; audio and video need a name.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct NewContent {
@@ -194,6 +200,10 @@ pub struct NewContent {
     /// this item in a grid. Left out, the first image the text shows is used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
+    /// The sha256 of the uploaded MP3 or M4A an audio item plays, or the MP4,
+    /// MOV or WebM a video item plays. Required for those, refused otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recording: Option<String>,
     /// Who to credit, such as the agent writing it. Left out, the CLI
     /// token's name, or the person's email in a browser or the app.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -221,6 +231,9 @@ pub struct ContentEdit {
     /// empty string drops the chosen one, so the text's first image is used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<String>,
+    /// The sha256 of a new uploaded recording for an audio or video item.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recording: Option<String>,
     /// The version the caller last read. The edit is refused if it has moved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<u64>,

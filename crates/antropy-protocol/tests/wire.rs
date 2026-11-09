@@ -22,6 +22,7 @@ fn keys_go_out_as_camel_case() {
             ..Default::default()
         }],
         cover: None,
+        recording: None,
         read: None,
     };
     let json = serde_json::to_string(&item).unwrap();

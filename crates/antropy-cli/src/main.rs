@@ -24,6 +24,7 @@ Examples:
   antropy read 7f3a2b               the whole text of one item
   antropy write \"Pricing study\" --file study.md --tags research,pricing
   antropy update 7f3a2b --file study.md
+  antropy write \"Launch demo\" --video demo.mp4 --file notes.md --cover still.png
   antropy rm 7f3a2b --yes           remove it without being asked
   antropy list --json               the index as JSON, to pick apart
 ";
@@ -177,6 +178,10 @@ enum Command {
     ///
     /// Images the markdown shows by a path next to it, such as
     /// `![Chart](./chart.png)`, are sent with it.
+    ///
+    /// --audio or --video publishes a recording instead: an MP3 or M4A up to
+    /// 200 MB, or an MP4, MOV or WebM up to 1 GB. Its description is optional
+    /// markdown from --file; standard input is never read for one.
     Write {
         /// What people will see in the list.
         name: String,
@@ -189,6 +194,12 @@ enum Command {
         /// The kind of text this is.
         #[arg(long = "type", value_parser = ["markdown", "text", "json", "html"])]
         file_type: Option<String>,
+        /// Publish this MP3 or M4A as an audio item.
+        #[arg(long, conflicts_with_all = ["file_type", "video"])]
+        audio: Option<PathBuf>,
+        /// Publish this MP4, MOV or WebM as a video item.
+        #[arg(long, conflicts_with = "file_type")]
+        video: Option<PathBuf>,
         /// An image to show for it when a space is seen as tiles. Without
         /// one, the first image the text shows is used.
         #[arg(long)]
@@ -228,6 +239,13 @@ enum Command {
         /// Drop its chosen cover, so the first image its text shows is used.
         #[arg(long)]
         no_cover: bool,
+        /// Replace the recording an audio item plays, or make it one.
+        #[arg(long, conflicts_with = "video")]
+        audio: Option<PathBuf>,
+        /// Replace the recording a video item plays, or make it one. People
+        /// see it as unread again.
+        #[arg(long)]
+        video: Option<PathBuf>,
     },
     /// Remove one piece of content.
     ///
@@ -320,8 +338,18 @@ fn local_media(text: &str, file: Option<&Path>) -> Result<Vec<(String, Vec<u8>)>
     Ok(found)
 }
 
-/// Uploads a cover image and hands back its hash.
-async fn upload_cover(client: &mut Client, slug: &str, path: &Path) -> Result<String, String> {
+/// The kind of item and its file, when it plays a recording.
+fn recording_arg(
+    audio: Option<PathBuf>,
+    video: Option<PathBuf>,
+) -> Option<(&'static str, PathBuf)> {
+    audio
+        .map(|path| ("audio", path))
+        .or(video.map(|path| ("video", path)))
+}
+
+/// Uploads a file and hands back its hash.
+async fn upload_file(client: &mut Client, slug: &str, path: &Path) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut hashes = upload(client, slug, vec![bytes]).await?;
     Ok(hashes.remove(0))
@@ -502,7 +530,11 @@ async fn run(cli: Cli) -> Result<(), String> {
                 println!("{}", pretty(&listing)?);
             } else {
                 for item in &listing.items {
-                    println!("{}  {}: {}", item.id, item.name, item.summary);
+                    let kind = match item.file_type.as_str() {
+                        "audio" | "video" => format!("[{}] ", item.file_type),
+                        _ => String::new(),
+                    };
+                    println!("{}  {kind}{}: {}", item.id, item.name, item.summary);
                 }
             }
         }
@@ -558,17 +590,28 @@ async fn run(cli: Cli) -> Result<(), String> {
             file_type,
             cover,
             author,
+            audio,
+            video,
         } => {
             let slug = space(&cli.space, &client)?;
+            let playing = recording_arg(audio, video);
             let text = match &file {
                 Some(path) => read_file(path)?,
+                None if playing.is_some() => String::new(),
                 None => read_stdin(&format!(
                     "Publishing {name}. Type the text, then press ctrl-d."
                 ))?,
             };
+            let (file_type, recording) = match playing {
+                Some((kind, path)) => (
+                    Some(kind.to_owned()),
+                    Some(upload_file(&mut client, &slug, &path).await?),
+                ),
+                None => (file_type, None),
+            };
             let (body, media) = upload_text(&mut client, &slug, text, file.as_deref(), &[]).await?;
             let cover = match &cover {
-                Some(path) => Some(upload_cover(&mut client, &slug, path).await?),
+                Some(path) => Some(upload_file(&mut client, &slug, path).await?),
                 None => None,
             };
             let new = NewContent {
@@ -578,6 +621,7 @@ async fn run(cli: Cli) -> Result<(), String> {
                 body,
                 media,
                 cover,
+                recording,
                 author,
             };
             let url = client.url(&["api", "spaces", &slug, "content"])?;
@@ -595,7 +639,10 @@ async fn run(cli: Cli) -> Result<(), String> {
             tags,
             cover,
             no_cover,
+            audio,
+            video,
         } => {
+            let playing = recording_arg(audio, video);
             let slug = space(&cli.space, &client)?;
             // Read before taking the new text, so the version sent covers the
             // whole time that text was being written and anyone else's change
@@ -606,7 +653,12 @@ async fn run(cli: Cli) -> Result<(), String> {
             let text = match &file {
                 Some(path) => Some(read_file(path)?),
                 // With nothing else named, the text is what is being changed.
-                None if name.is_none() && tags.is_none() && cover.is_none() && !no_cover => {
+                None if name.is_none()
+                    && tags.is_none()
+                    && cover.is_none()
+                    && !no_cover
+                    && playing.is_none() =>
+                {
                     Some(read_stdin(&format!(
                         "Changing {}. Type the new text, then press ctrl-d.",
                         doc.item.name
@@ -624,9 +676,16 @@ async fn run(cli: Cli) -> Result<(), String> {
                 None => (None, None),
             };
             let cover = match &cover {
-                Some(path) => Some(upload_cover(&mut client, &slug, path).await?),
+                Some(path) => Some(upload_file(&mut client, &slug, path).await?),
                 None if no_cover => Some(String::new()),
                 None => None,
+            };
+            let (file_type, recording) = match playing {
+                Some((kind, path)) => (
+                    Some(kind.to_owned()),
+                    Some(upload_file(&mut client, &slug, &path).await?),
+                ),
+                None => (None, None),
             };
             let edit = ContentEdit {
                 name,
@@ -634,8 +693,9 @@ async fn run(cli: Cli) -> Result<(), String> {
                 body,
                 media,
                 cover,
+                file_type,
+                recording,
                 version: Some(doc.item.version),
-                ..Default::default()
             };
             let url = client.url(&["api", "spaces", &slug, "content", &id])?;
             match client

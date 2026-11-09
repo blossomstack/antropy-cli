@@ -12,7 +12,8 @@ struct ContentItem {
     name: String,
     /// One line drawn from the start of the text.
     summary: String,
-    /// markdown, text, json or html.
+    /// markdown, text, json, html, audio or video. Audio and video play
+    /// `recording`, and their text is an optional markdown description.
     file_type: String,
     /// The connection that published it, or a person's email address.
     author: String,
@@ -23,7 +24,8 @@ struct ContentItem {
     bytes: u64,
     /// Rises whenever this item changes. Send it back to edit safely.
     version: u64,
-    /// Rises only when its text changes, not its name, tags or cover. Unique
+    /// Rises only when its text or recording changes, not its name, tags or
+    /// cover. Unique
     /// within its space; pages are ordered by it, newest first.
     content_version: u64,
     /// The sha256 of the stored text, in hex. Fetch it with a file pass.
@@ -33,6 +35,8 @@ struct ContentItem {
     /// The picture to show for this item in a grid: the one chosen for it,
     /// else the first image its text shows. None when it has neither.
     cover: Option<MediaInfo>,
+    /// What an audio or video item plays. None for every other kind.
+    recording: Option<MediaInfo>,
     /// Whether the person asking has read it since its text last changed.
     /// Left out for the CLI, and wherever nobody in particular is asking.
     read: Option<bool>,
@@ -44,7 +48,8 @@ struct MediaInfo {
     name: String,
     /// The sha256 of the stored file, in hex. Fetch it with a file pass.
     body: String,
-    /// image/png, image/jpeg, image/gif, image/webp, audio/mpeg or audio/mp4.
+    /// image/png, image/jpeg, image/gif, image/webp, audio/mpeg, audio/mp4,
+    /// video/mp4, video/quicktime or video/webm.
     media_type: String,
     bytes: u64,
     alt: String,
@@ -148,7 +153,7 @@ struct Changes {
 }
 
 /// Content to publish, its text and media uploaded first. A missing name or
-/// file type is worked out from the text.
+/// file type is worked out from the text; audio and video need a name.
 struct NewContent {
     name: Option<String>,
     file_type: Option<String>,
@@ -160,6 +165,9 @@ struct NewContent {
     /// The sha256 of an uploaded PNG, JPEG, GIF or WebP image to show for
     /// this item in a grid. Left out, the first image the text shows is used.
     cover: Option<String>,
+    /// The sha256 of the uploaded MP3 or M4A an audio item plays, or the MP4,
+    /// MOV or WebM a video item plays. Required for those, refused otherwise.
+    recording: Option<String>,
     /// Who to credit, such as the agent writing it. Left out, the CLI
     /// token's name, or the person's email in a browser or the app.
     author: Option<String>,
@@ -178,6 +186,8 @@ struct ContentEdit {
     /// The sha256 of an uploaded image to show for this item in a grid. An
     /// empty string drops the chosen one, so the text's first image is used.
     cover: Option<String>,
+    /// The sha256 of a new uploaded recording for an audio or video item.
+    recording: Option<String>,
     /// The version the caller last read. The edit is refused if it has moved.
     version: Option<u64>,
 }
