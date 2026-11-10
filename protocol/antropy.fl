@@ -40,6 +40,31 @@ struct ContentItem {
     /// Whether the person asking has read it since its text last changed.
     /// Left out for the CLI, and wherever nobody in particular is asking.
     read: Option<bool>,
+    /// How many changes people have made on top of `version`, such as
+    /// ticking a task, that are not saved into it yet. `body` already shows
+    /// them. Send it back with `version` to edit safely. 0 when there are none.
+    minor_version: u64,
+    /// Its markdown's task list items, and how many are ticked. None when it
+    /// has none, and for items not changed since counts began.
+    tasks: Option<TaskCount>,
+}
+
+/// How many of an item's tasks, `- [ ]` and `- [x]`, are ticked.
+struct TaskCount {
+    done: u64,
+    total: u64,
+}
+
+/// Ticks or unticks one task in an item's markdown. Only people can, in a
+/// browser or the app.
+struct TaskTick {
+    /// The line the task is on, counting from 1.
+    line: u64,
+    /// The task's words as written after its box, trimmed. If the text has
+    /// changed and `line` holds another task, the one task with these words
+    /// is ticked instead.
+    text: String,
+    done: bool,
 }
 
 /// One image or recording a piece of markdown shows, as `![alt](name)`.
@@ -193,6 +218,9 @@ struct ContentEdit {
     recording: Option<String>,
     /// The version the caller last read. The edit is refused if it has moved.
     version: Option<u64>,
+    /// The minor version read along with `version`. The edit is refused if a
+    /// person has changed the item since. Left out, it is 0.
+    minor_version: Option<u64>,
 }
 
 /// Who the caller is.
@@ -341,4 +369,6 @@ struct ApiError {
     /// For a refused write, the version the content is at now, so the caller
     /// can read it again and decide rather than retrying blindly.
     version: Option<u64>,
+    /// With `version`, the minor version the content is at now.
+    minor_version: Option<u64>,
 }

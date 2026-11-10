@@ -11,6 +11,8 @@ pub struct Refused {
     /// For a refused edit, the version the content is at now, so the caller
     /// can read it again instead of retrying blindly.
     pub version: Option<u64>,
+    /// With `version`, how many changes people have made on top of it.
+    pub minor_version: Option<u64>,
 }
 
 impl From<String> for Refused {
@@ -18,6 +20,7 @@ impl From<String> for Refused {
         Self {
             message,
             version: None,
+            minor_version: None,
         }
     }
 }
@@ -161,6 +164,7 @@ async fn check(res: Response) -> Result<Response, Refused> {
         Ok(body) if !body.message.is_empty() => Err(Refused {
             message: body.message,
             version: body.version,
+            minor_version: body.minor_version,
         }),
         _ => Err(format!("the server answered {status}").into()),
     }

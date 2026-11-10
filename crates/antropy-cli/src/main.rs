@@ -758,6 +758,8 @@ async fn run(cli: Cli) -> Result<(), String> {
                 file_type,
                 recording,
                 version: Some(doc.item.version),
+                // Ticks people made since are refused too, not overwritten.
+                minor_version: Some(doc.item.minor_version),
             };
             let url = client.url(&["api", "spaces", &space_id, "content", &id])?;
             match client
@@ -772,13 +774,18 @@ async fn run(cli: Cli) -> Result<(), String> {
                     }
                 }
                 Err(refused) => {
-                    return Err(match refused.version {
-                        Some(now) => format!(
+                    return Err(match (refused.version, refused.minor_version) {
+                        (Some(now), Some(minor)) if now == doc.item.version => format!(
+                            "a person changed this first, such as by ticking a task: it now has \
+                             {minor} such change(s) on version {now}. Read it again with \
+                             `antropy read {id}`, then decide whether your change still applies."
+                        ),
+                        (Some(now), _) => format!(
                             "somebody changed this first, and it is now at version {now}. \
                              Read it again with `antropy read {id}`, then decide whether \
                              your change still applies."
                         ),
-                        None => refused.message,
+                        (None, _) => refused.message,
                     })
                 }
             }

@@ -39,6 +39,36 @@ pub struct ContentItem {
     /// Left out for the CLI, and wherever nobody in particular is asking.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read: Option<bool>,
+    /// How many changes people have made on top of `version`, such as
+    /// ticking a task, that are not saved into it yet. `body` already shows
+    /// them. Send it back with `version` to edit safely. 0 when there are none.
+    pub minor_version: u64,
+    /// Its markdown's task list items, and how many are ticked. None when it
+    /// has none, and for items not changed since counts began.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tasks: Option<crate::antropy::v1::TaskCount>,
+}
+
+/// How many of an item's tasks, `- [ ]` and `- [x]`, are ticked.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskCount {
+    pub done: u64,
+    pub total: u64,
+}
+
+/// Ticks or unticks one task in an item's markdown. Only people can, in a
+/// browser or the app.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskTick {
+    /// The line the task is on, counting from 1.
+    pub line: u64,
+    /// The task's words as written after its box, trimmed. If the text has
+    /// changed and `line` holds another task, the one task with these words
+    /// is ticked instead.
+    pub text: String,
+    pub done: bool,
 }
 
 /// One image or recording a piece of markdown shows, as `![alt](name)`.
@@ -240,6 +270,10 @@ pub struct ContentEdit {
     /// The version the caller last read. The edit is refused if it has moved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<u64>,
+    /// The minor version read along with `version`. The edit is refused if a
+    /// person has changed the item since. Left out, it is 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minor_version: Option<u64>,
 }
 
 /// Who the caller is.
@@ -416,4 +450,7 @@ pub struct ApiError {
     /// can read it again and decide rather than retrying blindly.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<u64>,
+    /// With `version`, the minor version the content is at now.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minor_version: Option<u64>,
 }

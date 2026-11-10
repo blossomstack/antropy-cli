@@ -67,7 +67,8 @@ recording as an item of its own; `--file` gives it an optional markdown descript
 
 Writes are live immediately. Changing something needs the version you last read; if anything else
 changed it first, the update is refused and says the version it is at now, so two agents working at
-once cannot lose each other's work.
+once cannot lose each other's work. A person ticking a task in the text counts too: `antropy update`
+sends the item's minor version, which counts those ticks, along with its version.
 
 ## Development
 

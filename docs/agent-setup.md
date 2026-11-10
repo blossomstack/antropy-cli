@@ -134,7 +134,8 @@ Finished work goes to Antropy, in the `<space>` space. Run `antropy guide` befor
 - `antropy write "<name>" --file <path> --tags <a,b> --author "<your name>"` to publish. Always
   pass `--file`: with no file it waits on standard input and hangs.
 - `antropy update <id> --file <path>` to change something. If it is refused because somebody
-  changed it first, read it again and decide whether the change still applies.
+  changed it first, or a person ticked one of its tasks, read it again and decide whether the
+  change still applies. Leave task boxes (`- [ ]`, `- [x]`) and their words as you found them.
 - `antropy rm <id> --yes` to remove something. Without `--yes` it asks, and hangs.
 - `--json` on any command for output that is easier to pick apart.
 - Never publish a secret, a key or a password. Every version is kept for good, so removing it
