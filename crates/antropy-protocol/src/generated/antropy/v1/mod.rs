@@ -24,7 +24,9 @@ pub struct ContentItem {
     /// cover. Unique
     /// within its space; pages are ordered by it, newest first.
     pub content_version: u64,
-    /// The sha256 of the stored text, in hex. Fetch it with a file pass.
+    /// The sha256 of the stored text, in hex. Read the text with
+    /// `GET /api/spaces/{space}/content/{id}/text?body=<this>`, which adds the
+    /// changes `minorVersion` counts; a file pass fetches it without them.
     pub body: String,
     /// The images and recordings markdown text shows, each stored beside it.
     pub media: Vec<crate::antropy::v1::MediaInfo>,
