@@ -28,7 +28,9 @@ struct ContentItem {
     /// cover. Unique
     /// within its space; pages are ordered by it, newest first.
     content_version: u64,
-    /// The sha256 of the stored text, in hex. Fetch it with a file pass.
+    /// The sha256 of the stored text, in hex. Read the text with
+    /// `GET /api/spaces/{space}/content/{id}/text?body=<this>`, which adds the
+    /// changes `minorVersion` counts; a file pass fetches it without them.
     body: String,
     /// The images and recordings markdown text shows, each stored beside it.
     media: Vec<MediaInfo>,
