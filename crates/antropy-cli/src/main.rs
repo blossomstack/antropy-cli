@@ -202,14 +202,11 @@ enum Command {
         /// Tags, separated by commas.
         #[arg(long, value_delimiter = ',')]
         tags: Option<Vec<String>>,
-        /// The kind of text this is.
-        #[arg(long = "type", value_parser = ["markdown", "text", "json", "html"])]
-        file_type: Option<String>,
         /// Publish this MP3 or M4A as an audio item.
-        #[arg(long, conflicts_with_all = ["file_type", "video"])]
+        #[arg(long, conflicts_with = "video")]
         audio: Option<PathBuf>,
         /// Publish this MP4, MOV or WebM as a video item.
-        #[arg(long, conflicts_with = "file_type")]
+        #[arg(long)]
         video: Option<PathBuf>,
         /// A PNG, JPEG, GIF or WebP to lead its tile; add one whenever you
         /// can, and always for audio and video. Without one, the first image
@@ -648,7 +645,6 @@ async fn run(cli: Cli) -> Result<(), String> {
             name,
             file,
             tags,
-            file_type,
             cover,
             author,
             audio,
@@ -668,7 +664,8 @@ async fn run(cli: Cli) -> Result<(), String> {
                     Some(kind.to_owned()),
                     Some(upload_file(&mut client, &space_id, &path).await?),
                 ),
-                None => (file_type, None),
+                // Everything else is markdown, which the server assumes.
+                None => (None, None),
             };
             let (body, media) =
                 upload_text(&mut client, &space_id, text, file.as_deref(), &[]).await?;

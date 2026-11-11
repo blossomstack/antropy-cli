@@ -8,8 +8,9 @@ pub struct ContentItem {
     pub name: String,
     /// One line drawn from the start of the text.
     pub summary: String,
-    /// markdown, text, json, html, audio or video. Audio and video play
-    /// `recording`, and their text is an optional markdown description.
+    /// markdown, audio or video. Audio and video play `recording`, and their
+    /// text is an optional markdown description. Items published before only
+    /// these could be may say text, json or html, and are shown as source.
     pub file_type: String,
     /// The connection that published it, or a person's email address.
     pub author: String,
@@ -222,6 +223,7 @@ pub struct Changes {
 pub struct NewContent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// markdown, audio or video. Left out, markdown.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

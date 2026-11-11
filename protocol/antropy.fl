@@ -12,8 +12,9 @@ struct ContentItem {
     name: String,
     /// One line drawn from the start of the text.
     summary: String,
-    /// markdown, text, json, html, audio or video. Audio and video play
-    /// `recording`, and their text is an optional markdown description.
+    /// markdown, audio or video. Audio and video play `recording`, and their
+    /// text is an optional markdown description. Items published before only
+    /// these could be may say text, json or html, and are shown as source.
     file_type: String,
     /// The connection that published it, or a person's email address.
     author: String,
@@ -186,6 +187,7 @@ struct Changes {
 /// file type is worked out from the text; audio and video need a name.
 struct NewContent {
     name: Option<String>,
+    /// markdown, audio or video. Left out, markdown.
     file_type: Option<String>,
     tags: Option<Vec<String>>,
     /// The sha256 of the uploaded text, in hex.
