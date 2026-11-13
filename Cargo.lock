@@ -53,33 +53,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "matrical-cli"
-version = "0.10.0"
-dependencies = [
- "matrical-protocol",
- "base64 0.22.1",
- "clap",
- "pulldown-cmark",
- "qrcode",
- "rand 0.9.5",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "url",
-]
-
-[[package]]
-name = "matrical-protocol"
-version = "0.10.0"
-dependencies = [
- "derive-new",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -769,6 +742,33 @@ name = "lru-slab"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
+
+[[package]]
+name = "matrical-cli"
+version = "0.11.0"
+dependencies = [
+ "base64 0.22.1",
+ "clap",
+ "matrical-protocol",
+ "pulldown-cmark",
+ "qrcode",
+ "rand 0.9.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "matrical-protocol"
+version = "0.11.0"
+dependencies = [
+ "derive-new",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "memchr"
