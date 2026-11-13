@@ -39,6 +39,10 @@ matrical write "Launch demo" --video demo.mp4 --file notes.md --cover still.png
 matrical list
 matrical search pricing tiers  # best matches first, with the passage that matched
 matrical read <id>
+matrical write "research/2026/Pricing study" --file study.md   # into a folder, made if missing
+matrical tree --depth 2       # how the space is filed
+matrical ls research          # what is in one folder
+matrical mv "research/2026/Pricing study" archive/
 matrical guide                # what an agent needs to know
 ```
 
@@ -69,6 +73,11 @@ Writes are live immediately. Changing something needs the version you last read;
 changed it first, the update is refused and says the version it is at now, so two agents working at
 once cannot lose each other's work. A person ticking a task in the text counts too: `matrical update`
 sends the item's minor version, which counts those ticks, along with its version.
+
+A space can hold folders. A name with folders in it files the item there, and any command that takes
+an id also takes a path. A name is used once per folder, ignoring case, so writing to a path that is
+already taken gives that item the new text. `matrical mkdir` and `matrical rmdir` (`--everything`
+for a folder that is not empty) make and remove folders; moving is free.
 
 ## Development
 

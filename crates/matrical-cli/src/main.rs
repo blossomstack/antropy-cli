@@ -4,12 +4,15 @@ mod client;
 mod config;
 mod login;
 mod media;
+mod tree;
 
 use clap::{Parser, Subcommand};
 use matrical_protocol::{
-    ContentDoc, ContentEdit, ContentItem, HistoryEntry, Listing, Me, MediaRef, NewContent,
-    NewSpace, SearchResults, SpaceMember, SpaceSummary, UploadFile, UploadLinks, UploadRequest,
+    ContentDoc, ContentEdit, ContentItem, Folder, FolderEdit, FolderEntry, FolderPage,
+    HistoryEntry, Listing, Me, MediaRef, NewContent, NewFolder, NewSpace, SearchResults,
+    SpaceMember, SpaceSummary, UploadFile, UploadLinks, UploadRequest,
 };
+use tree::{Found, Tree};
 
 const DEFAULT_SERVER: &str = "https://api.matrical.app";
 
@@ -22,7 +25,11 @@ Examples:
   matrical search pricing tiers      best matches first, with the passage
   matrical list --tag research       ids and summaries, narrowed by tag
   matrical read 7f3a2b               the whole text of one item
+  matrical read \"research/Pricing study\"   or the item at a path
   matrical write \"Pricing study\" --file study.md --tags research,pricing --cover chart.png
+  matrical write \"research/2026/Pricing study\" --file study.md   into a folder, made if missing
+  matrical tree --depth 2 --limit 20 how the space is filed, kept short
+  matrical mv \"research/Pricing study\" archive/   move an item or a folder
   matrical update 7f3a2b --file study.md
   matrical write \"Launch demo\" --video demo.mp4 --file notes.md --cover still.png
   matrical rm 7f3a2b --yes           remove it without being asked
@@ -52,11 +59,16 @@ use std::path::{Path, PathBuf};
 /// To read: `matrical search <words>` is the quickest way to what you are after,
 /// best match first. `matrical list` gives every item with its id and a one-line
 /// summary, `--tag <tag>` narrows it, and `matrical read <id>` prints the whole
-/// text of one. `--json` on any command prints the raw answer instead, which is
+/// text of one. A space can hold folders: `matrical tree` shows them, and any
+/// command that takes an id also takes an item's path, such as
+/// `research/2026/Pricing study`. `--json` on any command prints the raw answer instead, which is
 /// easier to pick apart than the lines meant for people.
 ///
 /// To write: `matrical write "<name>" --file <path>` publishes, and it is live
-/// the moment it goes in — nothing is held for review. `matrical update <id>
+/// the moment it goes in — nothing is held for review. A name with folders in
+/// it, such as `research/2026/Pricing study`, files it there. A name is used
+/// once per folder, so writing to a path already taken gives that item the new
+/// text: keep a running note at one path and write to it again. `matrical update <id>
 /// --file <path>` changes what is already there, and is refused if anybody
 /// changed it since you read it: read it again and decide whether your change
 /// still applies, rather than retrying. Nothing is ever truly erased, so never
@@ -169,7 +181,7 @@ enum Command {
     /// Prints the text as it was published. --json gives its name, tags, media
     /// and version as well.
     Read {
-        /// The id that `list` shows.
+        /// The id that `list` shows, or the item's path.
         id: String,
     },
     /// Publish something new, from a file or standard input.
@@ -185,6 +197,12 @@ enum Command {
     /// Images the markdown shows by a path next to it, such as
     /// `![Chart](./chart.png)`, are sent with it.
     ///
+    /// The name can carry folders: `research/2026/Pricing study` puts it in
+    /// research/2026, making any folder missing. A name is used once per
+    /// folder, ignoring case, so writing to a path already taken gives that
+    /// item the new text as a new version. That is refused while a person's
+    /// tick waits on it: read it and use `matrical update`.
+    ///
     /// --audio or --video publishes a recording instead: an MP3 or M4A up to
     /// 200 MB, or an MP4, MOV or WebM up to 1 GB. Its description is optional
     /// markdown from --file; standard input is never read for one.
@@ -194,7 +212,8 @@ enum Command {
     /// lock screen while it plays. A still from the video, the slide being
     /// discussed or a chart from the text all work.
     Write {
-        /// What people will see in the list.
+        /// What people will see in the list, after any folders it goes in,
+        /// such as `research/Pricing study`. It cannot otherwise hold a `/`.
         name: String,
         /// Take the text from this file instead of standard input.
         #[arg(long)]
@@ -231,7 +250,7 @@ enum Command {
     /// Images found next to the file are sent again; ones it already had and
     /// still shows are kept either way.
     Update {
-        /// The id that `list` shows.
+        /// The id that `list` shows, or the item's path.
         id: String,
         /// Take the text from this file instead of standard input.
         #[arg(long)]
@@ -263,7 +282,7 @@ enum Command {
     /// published is kept for good. Without --yes it asks on the terminal first,
     /// so an unattended run has to pass --yes.
     Rm {
-        /// The id that `list` shows.
+        /// The id that `list` shows, or the item's path.
         id: String,
         /// Go ahead without asking.
         #[arg(long)]
@@ -273,9 +292,61 @@ enum Command {
     ///
     /// One line per change: the version, who made it, and what they did.
     History {
-        /// Follow one piece of content, by id, instead of the whole space.
+        /// Follow one piece of content, by id or path, instead of the whole
+        /// space.
         #[arg(long)]
         content: Option<String>,
+    },
+    /// Show the folders and items under a path, as a tree.
+    ///
+    /// Folders come first, then items, each by name. --depth stops it that
+    /// many levels down, giving each folder below just its count; --limit
+    /// shows that many entries per folder and counts the rest. --json gives
+    /// every folder and item under the path, ids included.
+    Tree {
+        /// A folder's path. Left out, the whole space.
+        path: Option<String>,
+        /// How many levels down to show.
+        #[arg(long)]
+        depth: Option<usize>,
+        /// How many entries to show in each folder.
+        #[arg(long)]
+        limit: Option<usize>,
+    },
+    /// List what is directly in one folder: its folders, then its items.
+    ///
+    /// Each item line starts with its id, like `list`.
+    Ls {
+        /// A folder's path. Left out, the top of the space.
+        path: Option<String>,
+    },
+    /// Move or rename an item or a folder, with everything in it.
+    ///
+    /// The source is an item's id or path, or a folder's path. A destination
+    /// that is a folder, or ends in `/`, takes it in under its own name;
+    /// anything else is its new path, name included. Missing folders are
+    /// made. Moving is free.
+    Mv {
+        /// What to move.
+        from: String,
+        /// Where it goes.
+        to: String,
+    },
+    /// Make a folder, and any missing above it.
+    Mkdir {
+        /// As in `research/2026`.
+        path: String,
+    },
+    /// Remove a folder. Only an empty one, unless --everything.
+    Rmdir {
+        /// The folder's path.
+        path: String,
+        /// Remove every folder and item in it too. Asks first unless --yes.
+        #[arg(long)]
+        everything: bool,
+        /// Go ahead without asking.
+        #[arg(long)]
+        yes: bool,
     },
     /// Print instructions for agents.
     ///
@@ -360,6 +431,68 @@ fn pick(spaces: &[SpaceSummary], wanted: &str) -> Result<String, String> {
                 lines.join("\n")
             ))
         }
+    }
+}
+
+/// Every item and folder in the space.
+async fn load_listing(client: &mut Client, space_id: &str) -> Result<Listing, String> {
+    Ok(client.get(&["api", "spaces", space_id, "index"]).await?)
+}
+
+/// An item's id from its id or its path. An id is taken as it is.
+async fn item_id(client: &mut Client, space_id: &str, wanted: &str) -> Result<String, String> {
+    if is_space_id(wanted) {
+        return Ok(wanted.to_owned());
+    }
+    let listing = load_listing(client, space_id).await?;
+    match Tree::new(&listing).find(wanted) {
+        Found::Item(item) => Ok(item.id.clone()),
+        found => Err(not_an_item(wanted, found)),
+    }
+}
+
+fn not_an_item(wanted: &str, found: Found) -> String {
+    match found {
+        Found::Top | Found::Folder(_) => {
+            format!("{wanted} is a folder: `matrical ls {wanted}` shows what is in it")
+        }
+        Found::Several(items) => {
+            let lines: Vec<String> = items
+                .iter()
+                .map(|i| format!("  {}  {}", i.id, i.name))
+                .collect();
+            format!(
+                "{} items are called {wanted}; pass the id of the one you mean:\n{}",
+                items.len(),
+                lines.join("\n")
+            )
+        }
+        Found::Item(_) | Found::Nothing => {
+            format!("nothing is at {wanted}: `matrical tree` shows what is there")
+        }
+    }
+}
+
+/// A folder's id from its path; None for the top.
+fn folder_at(tree: &Tree, path: &str) -> Result<Option<String>, String> {
+    match tree.find(path) {
+        Found::Top => Ok(None),
+        Found::Folder(folder) => Ok(Some(folder.id.clone())),
+        Found::Item(_) | Found::Several(_) => Err(format!("{path} is an item, not a folder")),
+        Found::Nothing => Err(format!(
+            "no folder is at {path}: `matrical tree` shows what is there"
+        )),
+    }
+}
+
+/// Why publishing over a path was refused, in words that say what to do.
+fn refused_write(path: &str, refused: client::Refused) -> String {
+    match (refused.version, refused.minor_version) {
+        (Some(_), Some(minor)) if minor > 0 => format!(
+            "{path} is already there, and a person has ticked a task in it since it was saved. \
+             Read it with `matrical read \"{path}\"`, then change it with `matrical update`."
+        ),
+        _ => refused.message,
     }
 }
 
@@ -587,12 +720,14 @@ async fn run(cli: Cli) -> Result<(), String> {
             if json_out {
                 println!("{}", pretty(&listing)?);
             } else {
+                let tree = Tree::new(&listing);
                 for item in &listing.items {
                     let kind = match item.file_type.as_str() {
                         "audio" | "video" => format!("[{}] ", item.file_type),
                         _ => String::new(),
                     };
-                    println!("{}  {kind}{}: {}", item.id, item.name, item.summary);
+                    let path = tree.item_path(item);
+                    println!("{}  {kind}{path}: {}", item.id, item.summary);
                 }
             }
         }
@@ -632,6 +767,7 @@ async fn run(cli: Cli) -> Result<(), String> {
         }
         Command::Read { id } => {
             let space_id = space(&cli.space, &mut client).await?;
+            let id = item_id(&mut client, &space_id, &id).await?;
             let doc: ContentDoc = client
                 .get(&["api", "spaces", &space_id, "content", &id])
                 .await?;
@@ -651,6 +787,11 @@ async fn run(cli: Cli) -> Result<(), String> {
             video,
         } => {
             let space_id = space(&cli.space, &mut client).await?;
+            let path = name;
+            let (folder, name) = tree::split(&path);
+            if name.is_empty() {
+                return Err("give it a name, after any folders it goes in".to_owned());
+            }
             let playing = recording_arg(audio, video);
             let text = match &file {
                 Some(path) => read_file(path)?,
@@ -682,13 +823,19 @@ async fn run(cli: Cli) -> Result<(), String> {
                 cover,
                 recording,
                 author,
+                folder: (!folder.is_empty()).then_some(folder),
             };
             let url = client.url(&["api", "spaces", &space_id, "content"])?;
-            let made: ContentItem = client.fetch(Method::POST, url, |r| r.json(&new)).await?;
+            let made: ContentItem = client
+                .fetch(Method::POST, url, |r| r.json(&new))
+                .await
+                .map_err(|refused| refused_write(&path, refused))?;
             if json_out {
                 println!("{}", pretty(&made)?);
+            } else if made.created_ms != made.updated_ms {
+                println!("Changed {path}, which was already there as {}.", made.id);
             } else {
-                println!("Published {} as {}.", made.name, made.id);
+                println!("Published {path} as {}.", made.id);
             }
         }
         Command::Update {
@@ -703,6 +850,7 @@ async fn run(cli: Cli) -> Result<(), String> {
         } => {
             let playing = recording_arg(audio, video);
             let space_id = space(&cli.space, &mut client).await?;
+            let id = item_id(&mut client, &space_id, &id).await?;
             // Read before taking the new text, so the version sent covers the
             // whole time that text was being written and anyone else's change
             // in that time is refused instead of lost.
@@ -757,6 +905,7 @@ async fn run(cli: Cli) -> Result<(), String> {
                 version: Some(doc.item.version),
                 // Ticks people made since are refused too, not overwritten.
                 minor_version: Some(doc.item.minor_version),
+                folder: None,
             };
             let url = client.url(&["api", "spaces", &space_id, "content", &id])?;
             match client
@@ -789,6 +938,7 @@ async fn run(cli: Cli) -> Result<(), String> {
         }
         Command::Rm { id, yes } => {
             let space_id = space(&cli.space, &mut client).await?;
+            let id = item_id(&mut client, &space_id, &id).await?;
             let doc: ContentDoc = client
                 .get(&["api", "spaces", &space_id, "content", &id])
                 .await?;
@@ -804,8 +954,168 @@ async fn run(cli: Cli) -> Result<(), String> {
                 .await?;
             println!("Removed {}.", doc.item.name);
         }
+        Command::Tree { path, depth, limit } => {
+            let space_id = space(&cli.space, &mut client).await?;
+            let listing = load_listing(&mut client, &space_id).await?;
+            let tree = Tree::new(&listing);
+            let top = folder_at(&tree, path.as_deref().unwrap_or(""))?;
+            if json_out {
+                println!("{}", pretty(&tree.under(top.as_deref()))?);
+            } else {
+                print!("{}", tree.draw(top.as_deref(), depth, limit));
+            }
+        }
+        Command::Ls { path } => {
+            let space_id = space(&cli.space, &mut client).await?;
+            let listing = load_listing(&mut client, &space_id).await?;
+            let tree = Tree::new(&listing);
+            let top = folder_at(&tree, path.as_deref().unwrap_or(""))?;
+            let (folders, items) = tree.children(top.as_deref());
+            if json_out {
+                let page = FolderPage {
+                    space: space_id.clone(),
+                    version: listing.version,
+                    folder: top
+                        .as_deref()
+                        .and_then(|id| listing.folders.iter().find(|f| f.id == id).cloned()),
+                    folders: folders
+                        .iter()
+                        .map(|folder| FolderEntry {
+                            folder: (*folder).clone(),
+                            items: tree.count(&folder.id) as u64,
+                            unread: None,
+                        })
+                        .collect(),
+                    items: items.into_iter().cloned().collect(),
+                    ..Default::default()
+                };
+                println!("{}", pretty(&page)?);
+            } else {
+                for folder in &folders {
+                    let n = tree.count(&folder.id);
+                    let word = if n == 1 { "item" } else { "items" };
+                    println!("{}/  ({n} {word})", folder.name);
+                }
+                for item in &items {
+                    println!("{}  {}: {}", item.id, item.name, item.summary);
+                }
+                if folders.is_empty() && items.is_empty() {
+                    eprintln!("Nothing is in it yet.");
+                }
+            }
+        }
+        Command::Mv { from, to } => {
+            let space_id = space(&cli.space, &mut client).await?;
+            let listing = load_listing(&mut client, &space_id).await?;
+            let tree = Tree::new(&listing);
+            let source = if is_space_id(&from) {
+                listing
+                    .items
+                    .iter()
+                    .find(|item| item.id == from)
+                    .map_or(Found::Nothing, Found::Item)
+            } else {
+                tree.find(&from)
+            };
+            let target = tree.find(&to);
+            match source {
+                Found::Item(item) => {
+                    let into = to.trim_end().ends_with('/')
+                        || matches!(target, Found::Folder(_) | Found::Top);
+                    let (folder, name) = if into {
+                        (tree::parts(&to).join("/"), item.name.clone())
+                    } else {
+                        tree::split(&to)
+                    };
+                    let edit = ContentEdit {
+                        folder: Some(folder),
+                        name: (name != item.name).then_some(name),
+                        ..Default::default()
+                    };
+                    let url = client.url(&["api", "spaces", &space_id, "content", &item.id])?;
+                    let moved: ContentItem =
+                        client.fetch(Method::PUT, url, |r| r.json(&edit)).await?;
+                    if json_out {
+                        println!("{}", pretty(&moved)?);
+                    } else {
+                        let now = load_listing(&mut client, &space_id).await?;
+                        let path = Tree::new(&now).item_path(&moved);
+                        println!("Moved {} to {path}.", tree.item_path(item));
+                    }
+                }
+                Found::Folder(folder) => {
+                    let into = to.trim_end().ends_with('/')
+                        || matches!(target, Found::Top)
+                        || matches!(target, Found::Folder(there) if there.id != folder.id);
+                    let mut path = tree::parts(&to);
+                    if into {
+                        path.push(folder.name.clone());
+                    }
+                    let edit = FolderEdit {
+                        path: path.join("/"),
+                    };
+                    let url = client.url(&["api", "spaces", &space_id, "folders", &folder.id])?;
+                    let moved: Folder = client.fetch(Method::PUT, url, |r| r.json(&edit)).await?;
+                    if json_out {
+                        println!("{}", pretty(&moved)?);
+                    } else {
+                        println!("Moved {} to {}.", folder.path, moved.path);
+                    }
+                }
+                Found::Top => return Err("the top of the space stays where it is".to_owned()),
+                found => return Err(not_an_item(&from, found)),
+            }
+        }
+        Command::Mkdir { path } => {
+            let space_id = space(&cli.space, &mut client).await?;
+            let url = client.url(&["api", "spaces", &space_id, "folders"])?;
+            let new = NewFolder { path };
+            let made: Folder = client.fetch(Method::POST, url, |r| r.json(&new)).await?;
+            if json_out {
+                println!("{}", pretty(&made)?);
+            } else {
+                println!("Made {}.", made.path);
+            }
+        }
+        Command::Rmdir {
+            path,
+            everything,
+            yes,
+        } => {
+            let space_id = space(&cli.space, &mut client).await?;
+            let listing = load_listing(&mut client, &space_id).await?;
+            let tree = Tree::new(&listing);
+            let id = folder_at(&tree, &path)?
+                .ok_or_else(|| "the top of the space cannot be removed".to_owned())?;
+            let shown = tree.folder_path(Some(&id));
+            if everything && !yes && !agreed(&format!("{shown} and everything in it"))? {
+                println!("Left alone.");
+                return Ok(());
+            }
+            let url = client.url(&["api", "spaces", &space_id, "folders", &id])?;
+            let everything = everything.to_string();
+            client
+                .send(Method::DELETE, url, |r| {
+                    r.query(&[("everything", &everything)])
+                })
+                .await
+                .map_err(|refused| {
+                    if refused.message.contains("not empty") {
+                        format!(
+                            "{shown} is not empty: add --everything to remove what is in it too"
+                        )
+                    } else {
+                        refused.message
+                    }
+                })?;
+            println!("Removed {shown}.");
+        }
         Command::History { content } => {
             let space_id = space(&cli.space, &mut client).await?;
+            let content = match content {
+                Some(wanted) => Some(item_id(&mut client, &space_id, &wanted).await?),
+                None => None,
+            };
             let url = client.url(&["api", "spaces", &space_id, "history"])?;
             let found: Vec<HistoryEntry> = client
                 .fetch(Method::GET, url, |r| match &content {
