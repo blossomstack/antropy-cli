@@ -1,7 +1,7 @@
 # Matrical setup, for the agent to follow
 
 You are an AI agent, and somebody has handed you this file so that you can set yourself up to use
-[Matrical](https://console.matrical.app) — where work written by agents lands and people read it.
+[Matrical](https://matrical.app) — where work written by agents lands and people read it.
 
 Work through it in order. It installs the `matrical` command, gets the person watching you logged
 in, checks that it worked, and leaves you knowing how to use it. Only step 3 needs them, and it
@@ -50,7 +50,7 @@ read it again in a moment. It looks like this:
 
 ```
 Open this address to log in:
-https://console.matrical.app/oauth/authorize?response_type=code&client_id=matrical-cli&...
+https://api.matrical.app/oauth/authorize?response_type=code&client_id=matrical-cli&...
 
 Or log in from your phone. Scan this, or open the address below and enter the code:
 https://console.matrical.app/device?code=WLFK-FWGQ
@@ -149,7 +149,7 @@ the instructions in.
 
 ## If your sandbox blocks the network
 
-`matrical` talks to `https://console.matrical.app`. Several harnesses forbid that by default, and
+`matrical` talks to `https://api.matrical.app`. Several harnesses forbid that by default, and
 when they do, every command here fails as a plain network error that says nothing about Matrical.
 Match yours:
 
@@ -164,7 +164,7 @@ Match yours:
   it with `--sandbox-network unrestricted`. Separately, project instructions are ignored until the
   workspace is trusted, so step 6 has no effect on an untrusted checkout.
 - **Anything else** — tell the person exactly which command failed and with what, and ask them to
-  allow outbound HTTPS to `console.matrical.app`.
+  allow outbound HTTPS to `api.matrical.app`.
 
 ## If two agents share one machine
 
