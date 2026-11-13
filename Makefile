@@ -1,11 +1,11 @@
-# The wire types are generated from protocol/antropy.fl, a copy of the
+# The wire types are generated from protocol/matrical.fl, a copy of the
 # server's schema. Pin the generator version: an unpinned bump would redden
 # unrelated pull requests.
 FLUORITE_VERSION ?= 0.9.0
 FLUORITE ?= npx --yes @blossomstack/fluorite-cli@$(FLUORITE_VERSION)
 
-SCHEMA   := protocol/antropy.fl
-RUST_OUT := crates/antropy-protocol/src/generated
+SCHEMA   := protocol/matrical.fl
+RUST_OUT := crates/matrical-protocol/src/generated
 DERIVES  := Debug,Clone,Default,PartialEq,serde::Serialize,serde::Deserialize
 
 .PHONY: types types-check check lint test all

@@ -1,17 +1,17 @@
 #!/bin/sh
-# Installs the antropy command line.
+# Installs the matrical command line.
 #
-#   curl -fsSL https://raw.githubusercontent.com/blossomstack/antropy-cli/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/blossomstack/matrical-cli/main/install.sh | sh
 #
-# ANTROPY_VERSION      a release tag such as v0.1.0; the newest release if unset
-# ANTROPY_INSTALL_DIR  where to put the binary; ~/.local/bin if unset
+# MATRICAL_VERSION      a release tag such as v0.1.0; the newest release if unset
+# MATRICAL_INSTALL_DIR  where to put the binary; ~/.local/bin if unset
 set -eu
 
-repo=blossomstack/antropy-cli
-install_dir=${ANTROPY_INSTALL_DIR:-$HOME/.local/bin}
+repo=blossomstack/matrical-cli
+install_dir=${MATRICAL_INSTALL_DIR:-$HOME/.local/bin}
 
 fail() {
-  echo "antropy install: $*" >&2
+  echo "matrical install: $*" >&2
   exit 1
 }
 
@@ -33,11 +33,11 @@ if [ "$os" = apple-darwin ] && [ "$arch" = x86_64 ] &&
   arch=aarch64
 fi
 
-asset="antropy-$arch-$os.tar.gz"
-if [ -n "${ANTROPY_DOWNLOAD_URL:-}" ]; then
-  base=$ANTROPY_DOWNLOAD_URL
-elif [ -n "${ANTROPY_VERSION:-}" ]; then
-  base="https://github.com/$repo/releases/download/$ANTROPY_VERSION"
+asset="matrical-$arch-$os.tar.gz"
+if [ -n "${MATRICAL_DOWNLOAD_URL:-}" ]; then
+  base=$MATRICAL_DOWNLOAD_URL
+elif [ -n "${MATRICAL_VERSION:-}" ]; then
+  base="https://github.com/$repo/releases/download/$MATRICAL_VERSION"
 else
   base="https://github.com/$repo/releases/latest/download"
 fi
@@ -61,12 +61,12 @@ fi
 tar -xzf "$tmp/$asset" -C "$tmp"
 mkdir -p "$install_dir"
 # Renamed into place within the same folder, so a running copy is not corrupted.
-cp "$tmp/antropy" "$install_dir/.antropy.new"
-chmod +x "$install_dir/.antropy.new"
-mv -f "$install_dir/.antropy.new" "$install_dir/antropy"
+cp "$tmp/matrical" "$install_dir/.matrical.new"
+chmod +x "$install_dir/.matrical.new"
+mv -f "$install_dir/.matrical.new" "$install_dir/matrical"
 
-echo "Installed $("$install_dir/antropy" --version) to $install_dir/antropy"
+echo "Installed $("$install_dir/matrical" --version) to $install_dir/matrical"
 case ":$PATH:" in
   *":$install_dir:"*) ;;
-  *) echo "Add $install_dir to your PATH to run it as 'antropy'." ;;
+  *) echo "Add $install_dir to your PATH to run it as 'matrical'." ;;
 esac

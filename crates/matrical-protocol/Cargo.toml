@@ -1,6 +1,6 @@
 [package]
-name = "antropy-protocol"
-description = "Wire types shared by the server and its apps, generated from protocol/antropy.fl"
+name = "matrical-protocol"
+description = "Wire types shared by the server and its apps, generated from protocol/matrical.fl"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

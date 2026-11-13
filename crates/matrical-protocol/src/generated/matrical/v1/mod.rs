@@ -30,14 +30,14 @@ pub struct ContentItem {
     /// changes `minorVersion` counts; a file pass fetches it without them.
     pub body: String,
     /// The images and recordings markdown text shows, each stored beside it.
-    pub media: Vec<crate::antropy::v1::MediaInfo>,
+    pub media: Vec<crate::matrical::v1::MediaInfo>,
     /// The picture to show for this item in a grid: the one chosen for it,
     /// else the first image its text shows. None when it has neither.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cover: Option<crate::antropy::v1::MediaInfo>,
+    pub cover: Option<crate::matrical::v1::MediaInfo>,
     /// What an audio or video item plays. None for every other kind.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub recording: Option<crate::antropy::v1::MediaInfo>,
+    pub recording: Option<crate::matrical::v1::MediaInfo>,
     /// Whether the person asking has read it since its text last changed.
     /// Left out for the CLI, and wherever nobody in particular is asking.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -49,7 +49,7 @@ pub struct ContentItem {
     /// Its markdown's task list items, and how many are ticked. None when it
     /// has none, and for items not changed since counts began.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tasks: Option<crate::antropy::v1::TaskCount>,
+    pub tasks: Option<crate::matrical::v1::TaskCount>,
 }
 
 /// How many of an item's tasks, `- [ ]` and `- [x]`, are ticked.
@@ -106,7 +106,7 @@ pub struct FilePass {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadRequest {
-    pub files: Vec<crate::antropy::v1::UploadFile>,
+    pub files: Vec<crate::matrical::v1::UploadFile>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
@@ -120,7 +120,7 @@ pub struct UploadFile {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadLinks {
-    pub uploads: Vec<crate::antropy::v1::UploadLink>,
+    pub uploads: Vec<crate::matrical::v1::UploadLink>,
 }
 
 /// Where to PUT one file. Storage refuses any other bytes: send exactly
@@ -150,7 +150,7 @@ pub struct MediaRef {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentDoc {
-    pub item: crate::antropy::v1::ContentItem,
+    pub item: crate::matrical::v1::ContentItem,
     pub text: String,
 }
 
@@ -162,7 +162,7 @@ pub struct Listing {
     pub space: String,
     pub version: u64,
     pub generated_ms: u64,
-    pub items: Vec<crate::antropy::v1::ContentItem>,
+    pub items: Vec<crate::matrical::v1::ContentItem>,
 }
 
 /// Part of a space, newest content first, with what the person asking has
@@ -175,7 +175,7 @@ pub struct ContentPage {
     /// The space's version when this was made.
     pub version: u64,
     pub generated_ms: u64,
-    pub items: Vec<crate::antropy::v1::ContentItem>,
+    pub items: Vec<crate::matrical::v1::ContentItem>,
     /// The `contentVersion` to ask for items before. None at the end.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next: Option<u64>,
@@ -196,7 +196,7 @@ pub struct ReadRange {
 #[serde(rename_all = "camelCase")]
 pub struct ReadMarks {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub read: Option<Vec<crate::antropy::v1::ReadRange>>,
+    pub read: Option<Vec<crate::matrical::v1::ReadRange>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unread: Option<Vec<u64>>,
 }
@@ -211,7 +211,7 @@ pub struct Changes {
     pub generated_ms: u64,
     /// The answer would have had a hole in it, so take the whole listing.
     pub full_refresh: bool,
-    pub items: Vec<crate::antropy::v1::ContentItem>,
+    pub items: Vec<crate::matrical::v1::ContentItem>,
     /// Ids that are no longer there.
     pub removed: Vec<String>,
 }
@@ -232,7 +232,7 @@ pub struct NewContent {
     pub body: String,
     /// Every image or recording the text shows.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub media: Option<Vec<crate::antropy::v1::MediaRef>>,
+    pub media: Option<Vec<crate::matrical::v1::MediaRef>>,
     /// The sha256 of an uploaded PNG, JPEG, GIF or WebP image to show for
     /// this item in a grid. Left out, the first image the text shows is used.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -263,7 +263,7 @@ pub struct ContentEdit {
     /// Media the new text shows that the item does not have yet, or that
     /// replaces what it has under the same name. Needs `body`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub media: Option<Vec<crate::antropy::v1::MediaRef>>,
+    pub media: Option<Vec<crate::matrical::v1::MediaRef>>,
     /// The sha256 of an uploaded image to show for this item in a grid. An
     /// empty string drops the chosen one, so the text's first image is used.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -312,7 +312,7 @@ pub struct CliToken {
     /// role allows. False when it reaches only `spaces`.
     pub all_spaces: bool,
     /// The spaces it may reach when it is limited to some.
-    pub spaces: Vec<crate::antropy::v1::TokenSpace>,
+    pub spaces: Vec<crate::matrical::v1::TokenSpace>,
 }
 
 /// One space a CLI token may reach, and how far. Never further than the
@@ -336,7 +336,7 @@ pub struct CliTokenEdit {
     pub all_spaces: Option<bool>,
     /// Every space it may reach while limited. Replaces the list it had.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub spaces: Option<Vec<crate::antropy::v1::TokenSpace>>,
+    pub spaces: Option<Vec<crate::matrical::v1::TokenSpace>>,
 }
 
 /// Somebody who can reach a space, and what they may do.
@@ -400,14 +400,14 @@ pub struct SearchResults {
     pub indexed_version: u64,
     /// Whether this search matched by meaning as well as by words.
     pub meaning: bool,
-    pub hits: Vec<crate::antropy::v1::SearchHit>,
+    pub hits: Vec<crate::matrical::v1::SearchHit>,
 }
 
 /// One item a search found.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHit {
-    pub item: crate::antropy::v1::ContentItem,
+    pub item: crate::matrical::v1::ContentItem,
     /// Words from the text where it matched, without markup. Its summary when
     /// only the name or tags matched.
     pub snippet: String,

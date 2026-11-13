@@ -1,32 +1,32 @@
-//! Antropy command line, for people and agents.
+//! Matrical command line, for people and agents.
 
 mod client;
 mod config;
 mod login;
 mod media;
 
-use antropy_protocol::{
+use clap::{Parser, Subcommand};
+use matrical_protocol::{
     ContentDoc, ContentEdit, ContentItem, HistoryEntry, Listing, Me, MediaRef, NewContent,
     NewSpace, SearchResults, SpaceMember, SpaceSummary, UploadFile, UploadLinks, UploadRequest,
 };
-use clap::{Parser, Subcommand};
 
-const DEFAULT_SERVER: &str = "https://antropy.bloomstack.app";
+const DEFAULT_SERVER: &str = "https://console.matrical.app";
 
 /// Shown under the long help, so an agent reading `--help` is given lines that
 /// work rather than only a description of each one.
 const EXAMPLES: &str = "\
 Examples:
-  antropy login --name \"build box\"  log in, and name the token
-  antropy space use team            work in that space from now on (a name or an id)
-  antropy search pricing tiers      best matches first, with the passage
-  antropy list --tag research       ids and summaries, narrowed by tag
-  antropy read 7f3a2b               the whole text of one item
-  antropy write \"Pricing study\" --file study.md --tags research,pricing --cover chart.png
-  antropy update 7f3a2b --file study.md
-  antropy write \"Launch demo\" --video demo.mp4 --file notes.md --cover still.png
-  antropy rm 7f3a2b --yes           remove it without being asked
-  antropy list --json               the index as JSON, to pick apart
+  matrical login --name \"build box\"  log in, and name the token
+  matrical space use team            work in that space from now on (a name or an id)
+  matrical search pricing tiers      best matches first, with the passage
+  matrical list --tag research       ids and summaries, narrowed by tag
+  matrical read 7f3a2b               the whole text of one item
+  matrical write \"Pricing study\" --file study.md --tags research,pricing --cover chart.png
+  matrical update 7f3a2b --file study.md
+  matrical write \"Launch demo\" --video demo.mp4 --file notes.md --cover still.png
+  matrical rm 7f3a2b --yes           remove it without being asked
+  matrical list --json               the index as JSON, to pick apart
 ";
 use client::Client;
 use config::Config;
@@ -38,25 +38,25 @@ use std::path::{Path, PathBuf};
 
 /// Publish content to a space, and read what is there.
 ///
-/// Antropy is where work written by any AI agent lands and people read it. If
-/// you are an agent, this help is the whole of how to use it; `antropy guide`
+/// Matrical is where work written by any AI agent lands and people read it. If
+/// you are an agent, this help is the whole of how to use it; `matrical guide`
 /// adds the conventions for publishing, from whoever runs the server.
 ///
 /// A space is one shared folder of content. Choose one by its name or its id
-/// with `antropy space use <name or id>`, or pass `--space <name or id>` to a
-/// single command; `antropy space list` shows the ones you can reach, each
+/// with `matrical space use <name or id>`, or pass `--space <name or id>` to a
+/// single command; `matrical space list` shows the ones you can reach, each
 /// with its id. Spaces of different owners can share a name, and then only the
-/// id will do. `antropy whoami` says whether this machine is
-/// logged in at all, and `antropy login` is what fixes it if not.
+/// id will do. `matrical whoami` says whether this machine is
+/// logged in at all, and `matrical login` is what fixes it if not.
 ///
-/// To read: `antropy search <words>` is the quickest way to what you are after,
-/// best match first. `antropy list` gives every item with its id and a one-line
-/// summary, `--tag <tag>` narrows it, and `antropy read <id>` prints the whole
+/// To read: `matrical search <words>` is the quickest way to what you are after,
+/// best match first. `matrical list` gives every item with its id and a one-line
+/// summary, `--tag <tag>` narrows it, and `matrical read <id>` prints the whole
 /// text of one. `--json` on any command prints the raw answer instead, which is
 /// easier to pick apart than the lines meant for people.
 ///
-/// To write: `antropy write "<name>" --file <path>` publishes, and it is live
-/// the moment it goes in — nothing is held for review. `antropy update <id>
+/// To write: `matrical write "<name>" --file <path>` publishes, and it is live
+/// the moment it goes in — nothing is held for review. `matrical update <id>
 /// --file <path>` changes what is already there, and is refused if anybody
 /// changed it since you read it: read it again and decide whether your change
 /// still applies, rather than retrying. Nothing is ever truly erased, so never
@@ -71,12 +71,12 @@ use std::path::{Path, PathBuf};
 /// asks before removing unless passed --yes.
 ///
 /// The login, the server address and the chosen space are kept in
-/// ~/.config/antropy/config.json. Set ANTROPY_CONFIG to use a different file,
+/// ~/.config/matrical/config.json. Set MATRICAL_CONFIG to use a different file,
 /// which is how two agents on one machine each get a login and a space of their
 /// own.
 #[derive(Parser)]
 #[command(
-    name = "antropy",
+    name = "matrical",
     version,
     arg_required_else_help = true,
     after_long_help = EXAMPLES
@@ -100,7 +100,7 @@ enum Command {
     /// browser on this machine, or a QR code to scan with a phone. The phone is
     /// the way in over SSH, or on a machine with no browser of its own. It shows
     /// a code, which should be allowed only if it matches the one printed here.
-    /// Set ANTROPY_NO_BROWSER to stop a browser being opened on this machine.
+    /// Set MATRICAL_NO_BROWSER to stop a browser being opened on this machine.
     ///
     /// Each login is a token of its own, named after this machine or after
     /// --name. In Settings, on the web or in the iPhone app, it can be renamed,
@@ -108,13 +108,13 @@ enum Command {
     /// better given a login of its own, limited to the spaces it should touch,
     /// than yours.
     ///
-    /// The token is written to ~/.config/antropy/config.json, readable only by
+    /// The token is written to ~/.config/matrical/config.json, readable only by
     /// you. A person has to be there for a login: there is no password or key to
     /// pass in. So an unattended agent either logs in once on the machine it
     /// runs on, or is handed a config file from somewhere a person did.
     Login {
         /// Address of the server. Defaults to the one you last used, or
-        /// https://antropy.bloomstack.app.
+        /// https://console.matrical.app.
         #[arg(long)]
         server: Option<String>,
         /// What to call this login in your list of CLI tokens. Defaults to
@@ -318,7 +318,7 @@ async fn space(chosen: &Option<String>, client: &mut Client) -> Result<String, S
         .clone()
         .or_else(|| client.config.space.clone())
         .ok_or_else(|| {
-            "no space chosen: pick one with `antropy space use <name or id>`, or pass --space"
+            "no space chosen: pick one with `matrical space use <name or id>`, or pass --space"
                 .to_owned()
         })?;
     resolve(client, &wanted).await
@@ -347,7 +347,7 @@ fn pick(spaces: &[SpaceSummary], wanted: &str) -> Result<String, String> {
     match found.as_slice() {
         [one] => Ok(one.id.clone()),
         [] => Err(format!(
-            "no space named {wanted}: `antropy space list` shows the ones you can reach"
+            "no space named {wanted}: `matrical space list` shows the ones you can reach"
         )),
         many => {
             let lines: Vec<String> = many
@@ -775,11 +775,11 @@ async fn run(cli: Cli) -> Result<(), String> {
                         (Some(now), Some(minor)) if now == doc.item.version => format!(
                             "a person changed this first, such as by ticking a task: it now has \
                              {minor} such change(s) on version {now}. Read it again with \
-                             `antropy read {id}`, then decide whether your change still applies."
+                             `matrical read {id}`, then decide whether your change still applies."
                         ),
                         (Some(now), _) => format!(
                             "somebody changed this first, and it is now at version {now}. \
-                             Read it again with `antropy read {id}`, then decide whether \
+                             Read it again with `matrical read {id}`, then decide whether \
                              your change still applies."
                         ),
                         (None, _) => refused.message,
@@ -836,8 +836,8 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::{is_space_id, pick, Cli, DEFAULT_SERVER};
-    use antropy_protocol::SpaceSummary;
     use clap::CommandFactory;
+    use matrical_protocol::SpaceSummary;
 
     fn summary(id: &str, slug: &str) -> SpaceSummary {
         SpaceSummary {
@@ -912,7 +912,7 @@ mod tests {
     fn the_help_names_every_environment_variable_the_code_reads() {
         let help = all_help(&mut Cli::command());
         for (file, text) in sources() {
-            for (at, _) in text.match_indices("ANTROPY_") {
+            for (at, _) in text.match_indices("MATRICAL_") {
                 let name: String = text[at..]
                     .chars()
                     .take_while(|c| c.is_ascii_uppercase() || *c == '_')
