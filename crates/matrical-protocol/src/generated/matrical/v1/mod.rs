@@ -50,6 +50,75 @@ pub struct ContentItem {
     /// has none, and for items not changed since counts began.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tasks: Option<crate::matrical::v1::TaskCount>,
+    /// The id of the folder it is in. None at the top of the space.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
+}
+
+/// A folder in a space. Its name is unique in its parent, among folders and
+/// items alike, ignoring case.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct Folder {
+    pub id: String,
+    pub name: String,
+    /// The folder it is in. None at the top of the space.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    /// Every folder name from the top down, joined with `/`, as in
+    /// `research/2026`.
+    pub path: String,
+}
+
+/// One folder inside the folder being looked at.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderEntry {
+    pub folder: crate::matrical::v1::Folder,
+    /// How many items are in it and in every folder under it.
+    pub items: u64,
+    /// Whether anything in it, or in any folder under it, is unread by the
+    /// person asking. Left out for the CLI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unread: Option<bool>,
+}
+
+/// What one folder holds: its folders, then its items, each by name. Items
+/// come a part at a time; ask for the next part with `from` set to `next`.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderPage {
+    /// The space's id.
+    pub space: String,
+    /// The space's version when this was made.
+    pub version: u64,
+    /// The folder looked at. None for the top of the space.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<crate::matrical::v1::Folder>,
+    /// The folders above it, top first, for finding the way back up.
+    pub trail: Vec<crate::matrical::v1::Folder>,
+    pub folders: Vec<crate::matrical::v1::FolderEntry>,
+    pub items: Vec<crate::matrical::v1::ContentItem>,
+    /// Where the next part of `items` starts. None at the end.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next: Option<u64>,
+}
+
+/// A folder to make, along with any folders above it that are missing.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct NewFolder {
+    /// As in `research/2026`.
+    pub path: String,
+}
+
+/// Moves or renames a folder, with everything in it.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderEdit {
+    /// Where it goes, as in `archive/research`. Missing folders above it are
+    /// made.
+    pub path: String,
 }
 
 /// How many of an item's tasks, `- [ ]` and `- [x]`, are ticked.
@@ -163,6 +232,8 @@ pub struct Listing {
     pub version: u64,
     pub generated_ms: u64,
     pub items: Vec<crate::matrical::v1::ContentItem>,
+    /// Every folder in the space.
+    pub folders: Vec<crate::matrical::v1::Folder>,
 }
 
 /// Part of a space, newest content first, with what the person asking has
@@ -214,6 +285,9 @@ pub struct Changes {
     pub items: Vec<crate::matrical::v1::ContentItem>,
     /// Ids that are no longer there.
     pub removed: Vec<String>,
+    /// Every folder in the space, when any folder changed. None otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folders: Option<Vec<crate::matrical::v1::Folder>>,
 }
 
 /// Content to publish, its text and media uploaded first. A missing name or
@@ -245,6 +319,11 @@ pub struct NewContent {
     /// token's name, or the person's email in a browser or the app.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
+    /// The folder to put it in, as in `research/2026`, made if missing. Left
+    /// out, the top of the space. When an item by its name is already there,
+    /// that item gets the new text instead, as an edit with no version would.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
 }
 
 /// Fields to change. Anything left out keeps the value it has.
@@ -278,6 +357,10 @@ pub struct ContentEdit {
     /// person has changed the item since. Left out, it is 0.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub minor_version: Option<u64>,
+    /// The folder to move it to, as in `research/2026`, made if missing. An
+    /// empty string moves it to the top of the space. Moving is free.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
 }
 
 /// Who the caller is.
@@ -425,8 +508,8 @@ pub struct SearchHit {
 pub struct Usage {
     /// free or paid.
     pub plan: String,
-    /// Writes this calendar month, UTC: new items and new text. Renames, tags,
-    /// covers and removals are free.
+    /// Writes this calendar month, UTC: new items and new text. Renames,
+    /// moves, folders, tags, covers and removals are free.
     pub writes: u64,
     pub writes_limit: u64,
     /// Bytes stored, including files nothing uses any more until they have
