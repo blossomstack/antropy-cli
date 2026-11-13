@@ -11,7 +11,7 @@ use matrical_protocol::{
     NewSpace, SearchResults, SpaceMember, SpaceSummary, UploadFile, UploadLinks, UploadRequest,
 };
 
-const DEFAULT_SERVER: &str = "https://console.matrical.app";
+const DEFAULT_SERVER: &str = "https://api.matrical.app";
 
 /// Shown under the long help, so an agent reading `--help` is given lines that
 /// work rather than only a description of each one.
@@ -114,7 +114,7 @@ enum Command {
     /// runs on, or is handed a config file from somewhere a person did.
     Login {
         /// Address of the server. Defaults to the one you last used, or
-        /// https://console.matrical.app.
+        /// https://api.matrical.app.
         #[arg(long)]
         server: Option<String>,
         /// What to call this login in your list of CLI tokens. Defaults to
