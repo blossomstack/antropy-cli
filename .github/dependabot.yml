@@ -1,0 +1,14 @@
+# Security updates only: a limit of 0 turns off routine version bumps, while
+# Dependabot still opens a PR when a dependency has a known vulnerability.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
