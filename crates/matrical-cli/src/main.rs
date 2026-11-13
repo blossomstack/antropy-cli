@@ -139,11 +139,13 @@ enum Command {
     /// Only this machine forgets. The token itself lives on until it is revoked
     /// in Settings.
     Logout,
-    /// Show who you're logged in as.
+    /// Show who you're logged in as, and what this login may do.
     ///
-    /// Prints the email address this machine's token belongs to, and fails when
-    /// there is no working login. It is the cheapest way to check a setup before
-    /// anything is published.
+    /// Prints the email address this machine's token belongs to, then what the
+    /// person allowed this login: which spaces it reaches and whether it may
+    /// create spaces. Its owner can change that at any time in Settings. Fails
+    /// when there is no working login. It is the cheapest way to check a setup
+    /// before anything is published.
     Whoami,
     /// Manage spaces.
     ///
@@ -367,11 +369,6 @@ enum SpaceCommand {
         /// What people see. Defaults to the short name.
         #[arg(long)]
         name: Option<String>,
-    },
-    /// Delete a space and everything in it.
-    Delete {
-        /// The space's short name or its id.
-        space: String,
     },
     /// Show who can reach the space, and what they may do.
     Members,
@@ -650,12 +647,6 @@ async fn space_command(
                 println!("Created {} as {}.", made.slug, made.id);
             }
         }
-        SpaceCommand::Delete { space } => {
-            let space_id = resolve(client, &space).await?;
-            let url = client.url(&["api", "spaces", &space_id])?;
-            client.send(Method::DELETE, url, |r| r).await?;
-            println!("Deleted {space}.");
-        }
         SpaceCommand::Members => {
             let space_id = space(chosen, client).await?;
             let members: Vec<SpaceMember> =
@@ -682,6 +673,28 @@ async fn space_command(
     Ok(())
 }
 
+/// What the person allowed this login, as `whoami` and `login` print it. No
+/// login can ever delete a space, so that is not said.
+fn describe(me: &Me) -> String {
+    let Some(token) = &me.cli_token else {
+        return "This login is not a CLI login.".to_owned();
+    };
+    let spaces = if token.all_spaces {
+        "all of the person's spaces, as far as their role allows".to_owned()
+    } else {
+        match token.spaces.len() {
+            0 => "no spaces yet".to_owned(),
+            1 => "1 chosen space (see `matrical space list`)".to_owned(),
+            n => format!("{n} chosen spaces (see `matrical space list`)"),
+        }
+    };
+    let create = if token.create_spaces { "yes" } else { "no" };
+    format!(
+        "Login: {}\nReaches: {spaces}\nMay create spaces: {create}",
+        token.name
+    )
+}
+
 async fn run(cli: Cli) -> Result<(), String> {
     let mut client = Client::new(Config::load()?);
     let json_out = cli.json;
@@ -692,6 +705,9 @@ async fn run(cli: Cli) -> Result<(), String> {
                 .unwrap_or_else(|| DEFAULT_SERVER.to_owned());
             let name = name.unwrap_or_else(login::machine_name);
             login::login(&mut client.config, &server, &name).await?;
+            let me: Me = client.get(&["api", "me"]).await?;
+            println!("Logged in.\n{}", describe(&me));
+            println!("Change what it may do, or revoke it, in Settings.");
         }
         Command::Logout => {
             client.config.access_token = None;
@@ -701,7 +717,13 @@ async fn run(cli: Cli) -> Result<(), String> {
         }
         Command::Whoami => {
             let me: Me = client.get(&["api", "me"]).await?;
-            println!("{}", me.email);
+            let who = if me.email.is_empty() {
+                &me.name
+            } else {
+                &me.email
+            };
+            println!("{who}");
+            println!("{}", describe(&me));
         }
         Command::Space(command) => {
             space_command(&mut client, &cli.space, command, json_out).await?;
@@ -1145,9 +1167,32 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_space_id, pick, Cli, DEFAULT_SERVER};
+    use super::{describe, is_space_id, pick, Cli, DEFAULT_SERVER};
     use clap::CommandFactory;
-    use matrical_protocol::SpaceSummary;
+    use matrical_protocol::{CliToken, Me, SpaceSummary, TokenSpace};
+
+    #[test]
+    fn whoami_says_what_the_login_may_do() {
+        let mut me = Me {
+            email: "a@x.test".into(),
+            cli_token: Some(CliToken {
+                name: "build-box".into(),
+                ..CliToken::default()
+            }),
+            ..Me::default()
+        };
+        assert_eq!(
+            describe(&me),
+            "Login: build-box\nReaches: no spaces yet\nMay create spaces: no"
+        );
+        let token = me.cli_token.as_mut().unwrap();
+        token.create_spaces = true;
+        token.spaces = vec![TokenSpace::default(), TokenSpace::default()];
+        assert!(describe(&me).contains("Reaches: 2 chosen spaces"));
+        assert!(describe(&me).ends_with("May create spaces: yes"));
+        me.cli_token.as_mut().unwrap().all_spaces = true;
+        assert!(describe(&me).contains("Reaches: all of the person's spaces"));
+    }
 
     fn summary(id: &str, slug: &str) -> SpaceSummary {
         SpaceSummary {
