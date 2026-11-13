@@ -1,17 +1,17 @@
 [package]
-name = "antropy-cli"
-description = "Antropy command line, for people and agents"
+name = "matrical-cli"
+description = "Matrical command line, for people and agents"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "antropy"
+name = "matrical"
 path = "src/main.rs"
 
 [dependencies]
-antropy-protocol = { path = "../antropy-protocol" }
+matrical-protocol = { path = "../matrical-protocol" }
 base64.workspace = true
 clap.workspace = true
 pulldown-cmark.workspace = true

@@ -53,10 +53,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "antropy-cli"
+name = "matrical-cli"
 version = "0.10.0"
 dependencies = [
- "antropy-protocol",
+ "matrical-protocol",
  "base64 0.22.1",
  "clap",
  "pulldown-cmark",
@@ -71,7 +71,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "antropy-protocol"
+name = "matrical-protocol"
 version = "0.10.0"
 dependencies = [
  "derive-new",

@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::login::Tokens;
-use antropy_protocol::{ApiError, UploadLink};
+use matrical_protocol::{ApiError, UploadLink};
 use reqwest::{Method, RequestBuilder, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use url::Url;
@@ -57,7 +57,7 @@ impl Client {
             .config
             .server
             .as_deref()
-            .ok_or("run `antropy login --server <address>` first")?;
+            .ok_or("run `matrical login --server <address>` first")?;
         let mut url = Url::parse(server).map_err(|e| e.to_string())?;
         url.path_segments_mut()
             .map_err(|_| "bad server address".to_owned())?
@@ -106,7 +106,7 @@ impl Client {
             }
             return check(res).await;
         }
-        Err("run `antropy login` again".into())
+        Err("run `matrical login` again".into())
     }
 
     /// Sends a file straight to storage with an upload link. The link is its
@@ -158,7 +158,7 @@ async fn check(res: Response) -> Result<Response, Refused> {
         return Ok(res);
     }
     if status == StatusCode::UNAUTHORIZED {
-        return Err("run `antropy login` again".into());
+        return Err("run `matrical login` again".into());
     }
     match res.json::<ApiError>().await {
         Ok(body) if !body.message.is_empty() => Err(Refused {

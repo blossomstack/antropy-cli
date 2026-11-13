@@ -1,9 +1,9 @@
-/// Everything the Antropy server and its apps send each other.
+/// Everything the Matrical server and its apps send each other.
 ///
 /// This file is the only description of the protocol. Rust and Swift are both
 /// generated from it, so a field added here reaches both sides or neither.
 /// All JSON keys are the field names exactly as written.
-package antropy.v1;
+package matrical.v1;
 
 /// One piece of content, without its text.
 struct ContentItem {

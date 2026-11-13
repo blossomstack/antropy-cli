@@ -16,7 +16,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use url::Url;
 
-pub const CLIENT_ID: &str = "antropy-cli";
+pub const CLIENT_ID: &str = "matrical-cli";
 const WAIT: Duration = Duration::from_secs(600);
 const DEVICE_GRANT: &str = "urn:ietf:params:oauth:grant-type:device_code";
 
@@ -46,7 +46,7 @@ fn random() -> String {
 }
 
 fn open_browser(url: &str) {
-    if std::env::var_os("ANTROPY_NO_BROWSER").is_some() {
+    if std::env::var_os("MATRICAL_NO_BROWSER").is_some() {
         return;
     }
     let opener = if cfg!(target_os = "macos") {
@@ -79,7 +79,7 @@ async fn callback(listener: &TcpListener) -> Result<HashMap<String, String>, Str
         .ok_or("the browser sent a bad request")?;
     let url = Url::parse(&format!("http://localhost{target}")).map_err(|e| e.to_string())?;
 
-    let body = "<!doctype html><title>Antropy</title><p>Logged in. You can close this tab.</p>";
+    let body = "<!doctype html><title>Matrical</title><p>Logged in. You can close this tab.</p>";
     let reply = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
@@ -130,7 +130,7 @@ async fn poll_device(
             Ok("slow_down") => interval += Duration::from_secs(5),
             Ok("access_denied") => return Err("the login was denied".into()),
             Ok("expired_token") => {
-                return Err("the login code ran out; run `antropy login` again".into())
+                return Err("the login code ran out; run `matrical login` again".into())
             }
             Ok(other) => return Err(format!("login failed: {other}")),
             Err(e) => return Err(e.to_string()),
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn a_qr_code_is_square_and_ends_every_line_in_the_terminal_default() {
-        let code = qr("https://antropy.bloomstack.app/device?code=WDJB-MJHT").unwrap();
+        let code = qr("https://console.matrical.app/device?code=WDJB-MJHT").unwrap();
         let lines: Vec<&str> = code.lines().collect();
         let cells = lines[0].matches('\u{2580}').count();
         assert_eq!(lines.len(), cells.div_ceil(2));

@@ -12,11 +12,11 @@ pub struct Config {
 }
 
 fn path() -> Result<PathBuf, String> {
-    if let Ok(path) = std::env::var("ANTROPY_CONFIG") {
+    if let Ok(path) = std::env::var("MATRICAL_CONFIG") {
         return Ok(path.into());
     }
     let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_owned())?;
-    Ok(PathBuf::from(home).join(".config/antropy/config.json"))
+    Ok(PathBuf::from(home).join(".config/matrical/config.json"))
 }
 
 impl Config {

@@ -1,6 +1,6 @@
 //! What the wire actually looks like. These are the facts both sides rely on.
 
-use antropy_protocol::{CliToken, ContentEdit, ContentItem, FilePass, MediaInfo, NewContent};
+use matrical_protocol::{CliToken, ContentEdit, ContentItem, FilePass, MediaInfo, NewContent};
 
 #[test]
 fn keys_go_out_as_camel_case() {

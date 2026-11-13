@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      # `antropy --version` reports the crate version, so a tag that disagrees
+      # `matrical --version` reports the crate version, so a tag that disagrees
       # would ship a binary that names the wrong release.
       - run: |
           crate=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
@@ -58,16 +58,16 @@ jobs:
           targets: ${{ matrix.target }}
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - run: cargo build --locked --release -p antropy-cli --target ${{ matrix.target }}
+      - run: cargo build --locked --release -p matrical-cli --target ${{ matrix.target }}
       - name: Package
         run: |
           mkdir -p dist
-          name=antropy-${{ matrix.target }}
-          tar -czf "dist/$name.tar.gz" -C target/${{ matrix.target }}/release antropy
+          name=matrical-${{ matrix.target }}
+          tar -czf "dist/$name.tar.gz" -C target/${{ matrix.target }}/release matrical
           cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: antropy-${{ matrix.target }}
+          name: matrical-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
 
@@ -88,8 +88,8 @@ jobs:
       # The same script people run, pointed at this run's builds instead of a
       # published release.
       - run: |
-          ANTROPY_DOWNLOAD_URL="file://$PWD/dist" ANTROPY_INSTALL_DIR="$RUNNER_TEMP/bin" sh install.sh
-          "$RUNNER_TEMP/bin/antropy" --version
+          MATRICAL_DOWNLOAD_URL="file://$PWD/dist" MATRICAL_INSTALL_DIR="$RUNNER_TEMP/bin" sh install.sh
+          "$RUNNER_TEMP/bin/matrical" --version
 
   release:
     name: Publish release
