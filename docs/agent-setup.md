@@ -90,7 +90,7 @@ When it is done, `rm /tmp/matrical-login.txt`. The token is not in it — it goe
 ## 4. Check it, and choose a space
 
 ```sh
-matrical whoami      # their email address
+matrical whoami      # their email address, then what this login may do
 matrical space list  # the spaces this login can reach, each with its id
 ```
 
@@ -102,8 +102,11 @@ different owners can share a name, and when they do only the id will do:
 matrical space use <name or id>
 ```
 
-If `space list` is empty, ask the person which space to use rather than inventing one.
-`matrical space create <name>` makes it once they have said.
+The person chose, when they allowed this login, which spaces it reaches and whether it may create
+spaces; `whoami` shows both. If `space list` is empty, ask the person which space to use rather than
+inventing one. `matrical space create <name>` makes it once they have said, if `whoami` says this
+login may create spaces; otherwise ask them to allow it a space in Settings. No login can delete a
+space; that is for the person, in the app or a browser.
 
 ## 5. Learn how to use it
 

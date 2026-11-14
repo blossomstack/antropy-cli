@@ -90,10 +90,10 @@ async fn callback(listener: &TcpListener) -> Result<HashMap<String, String>, Str
 
 /// Starts a device login. `None` when the server doesn't offer one, so the
 /// browser login still works against it.
-async fn start_device(http: &reqwest::Client, server: &str) -> Option<Device> {
+async fn start_device(http: &reqwest::Client, server: &str, name: &str) -> Option<Device> {
     let res = http
         .post(format!("{server}/oauth/device"))
-        .form(&[("client_id", CLIENT_ID)])
+        .form(&[("client_id", CLIENT_ID), ("name", name)])
         .send()
         .await
         .ok()?;
@@ -237,10 +237,12 @@ pub async fn login(config: &mut Config, server: &str, name: &str) -> Result<(), 
             ("code_challenge", &challenge),
             ("code_challenge_method", "S256"),
             ("state", &state),
+            // Offered as the login's name on the page that allows it.
+            ("name", name),
         ],
     )
     .map_err(|e| e.to_string())?;
-    let device = start_device(&http, server).await;
+    let device = start_device(&http, server, name).await;
 
     println!("Open this address to log in:\n{url}");
     if let Some(device) = &device {
@@ -277,7 +279,6 @@ pub async fn login(config: &mut Config, server: &str, name: &str) -> Result<(), 
     config.access_token = Some(tokens.access_token);
     config.refresh_token = Some(tokens.refresh_token);
     config.save()?;
-    println!("Logged in as {name}. Rename it, limit it to some spaces or revoke it in Settings.");
     Ok(())
 }
 

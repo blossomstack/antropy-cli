@@ -367,7 +367,48 @@ pub struct ContentEdit {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
 #[serde(rename_all = "camelCase")]
 pub struct Me {
+    /// As their sign-in provider gave it, which for Apple may be a relay
+    /// address. Empty when it gave none. Never use it to tell people apart.
     pub email: String,
+    /// What their writes in the browser and the app are credited to. Empty
+    /// until they or their provider give one.
+    pub name: String,
+    /// The CLI login calling and what it may do. Absent for the app and a
+    /// browser. Its owner can change this at any time, so read it, don't keep it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cli_token: Option<crate::matrical::v1::CliToken>,
+}
+
+/// Changes to the caller's own account (`PUT /api/me`). Anything left out
+/// stays as it is.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct MeEdit {
+    /// An empty one removes it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// Sign in with Apple in the iPhone app (`POST /api/sign-in`). Answered with
+/// the same tokens `/oauth/token` hands the app; an account is made the first
+/// time.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSignIn {
+    /// apple. Google signs in through the web login instead.
+    pub provider: String,
+    /// The credential's identity token.
+    pub id_token: String,
+    /// The random value made for this sign-in. Apple's request took its
+    /// SHA-256 in hex; this is the original.
+    pub nonce: String,
+    /// The credential's authorization code, so deleting the account can
+    /// revoke its Sign in with Apple.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authorization_code: Option<String>,
+    /// Apple gives the person's name to the app only, and only the first time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// Allows or denies a login a terminal started, by the code it shows. Only
@@ -378,6 +419,25 @@ pub struct DeviceAnswer {
     /// As the terminal shows it, with or without the dash.
     pub code: String,
     pub allow: bool,
+    /// What the login may do. Needed to allow it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grant: Option<crate::matrical::v1::CliGrant>,
+}
+
+/// What a person lets a CLI login do as they allow it. It can never delete a
+/// space, whatever it is given.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, derive_new::new)]
+#[serde(rename_all = "camelCase")]
+pub struct CliGrant {
+    /// Left out, it is named by the machine that logged in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Every space its owner can reach, now and later, as far as the owner's
+    /// role allows. False reaches only `spaces`.
+    pub all_spaces: bool,
+    pub spaces: Vec<crate::matrical::v1::TokenSpace>,
+    /// Whether it may make spaces. It can write in those it makes.
+    pub create_spaces: bool,
 }
 
 /// A command-line login: the CLI on one machine, or an agent using it. Only
@@ -396,6 +456,8 @@ pub struct CliToken {
     pub all_spaces: bool,
     /// The spaces it may reach when it is limited to some.
     pub spaces: Vec<crate::matrical::v1::TokenSpace>,
+    /// Whether it may make spaces. It can write in those it makes.
+    pub create_spaces: bool,
 }
 
 /// One space a CLI token may reach, and how far. Never further than the
@@ -420,6 +482,8 @@ pub struct CliTokenEdit {
     /// Every space it may reach while limited. Replaces the list it had.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spaces: Option<Vec<crate::matrical::v1::TokenSpace>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub create_spaces: Option<bool>,
 }
 
 /// Somebody who can reach a space, and what they may do.
