@@ -10,7 +10,7 @@ use clap::{Parser, Subcommand};
 use matrical_protocol::{
     ContentDoc, ContentEdit, ContentItem, Folder, FolderEdit, FolderEntry, FolderPage,
     HistoryEntry, Listing, Me, MediaRef, NewContent, NewFolder, NewSpace, SearchResults,
-    SpaceMember, SpaceSummary, UploadFile, UploadLinks, UploadRequest,
+    SpaceMember, SpaceSummary, UploadFile, UploadLinks, UploadRequest, Usage,
 };
 use tree::{Found, Tree};
 
@@ -350,6 +350,13 @@ enum Command {
         #[arg(long)]
         yes: bool,
     },
+    /// Show this month's writes and the storage used, against the plan's limits.
+    ///
+    /// Writes are new items and new text; renames, moves, folders, tags and
+    /// removals are free. When either runs out, publishing is refused: writes
+    /// come back next month (UTC), storage once removed content has been kept
+    /// its days and is deleted.
+    Usage,
     /// Print instructions for agents.
     ///
     /// Fetched from the server and written by whoever runs it, so it is the
@@ -695,6 +702,38 @@ fn describe(me: &Me) -> String {
     )
 }
 
+/// Bytes as people read them, in powers of 1000 like the app and the web.
+fn human_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["KB", "MB", "GB", "TB"];
+    if bytes < 1000 {
+        return format!("{bytes} bytes");
+    }
+    let mut value = bytes as f64 / 1000.0;
+    let mut unit = 0;
+    while value >= 1000.0 && unit + 1 < UNITS.len() {
+        value /= 1000.0;
+        unit += 1;
+    }
+    let shown = if value < 10.0 {
+        format!("{value:.1}")
+    } else {
+        format!("{value:.0}")
+    };
+    format!("{} {}", shown.trim_end_matches(".0"), UNITS[unit])
+}
+
+fn describe_usage(usage: &Usage) -> String {
+    format!(
+        "Plan: {}\nWrites this month: {} of {}\nStorage: {} of {}\nRemoved content is kept {} days.",
+        usage.plan,
+        usage.writes,
+        usage.writes_limit,
+        human_bytes(usage.bytes),
+        human_bytes(usage.bytes_limit),
+        usage.keep_days
+    )
+}
+
 async fn run(cli: Cli) -> Result<(), String> {
     let mut client = Client::new(Config::load()?);
     let json_out = cli.json;
@@ -727,6 +766,14 @@ async fn run(cli: Cli) -> Result<(), String> {
         }
         Command::Space(command) => {
             space_command(&mut client, &cli.space, command, json_out).await?;
+        }
+        Command::Usage => {
+            let usage: Usage = client.get(&["api", "usage"]).await?;
+            if json_out {
+                println!("{}", pretty(&usage)?);
+            } else {
+                println!("{}", describe_usage(&usage));
+            }
         }
         Command::Guide => {
             let url = client.url(&["api", "guide"])?;
@@ -1167,9 +1214,31 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{describe, is_space_id, pick, Cli, DEFAULT_SERVER};
+    use super::{describe, describe_usage, human_bytes, is_space_id, pick, Cli, DEFAULT_SERVER};
     use clap::CommandFactory;
-    use matrical_protocol::{CliToken, Me, SpaceSummary, TokenSpace};
+    use matrical_protocol::{CliToken, Me, SpaceSummary, TokenSpace, Usage};
+
+    #[test]
+    fn usage_reads_as_people_say_it() {
+        assert_eq!(human_bytes(512), "512 bytes");
+        assert_eq!(human_bytes(4_200_000), "4.2 MB");
+        assert_eq!(human_bytes(500_000_000), "500 MB");
+        assert_eq!(human_bytes(100_000_000_000), "100 GB");
+        assert_eq!(human_bytes(1_000), "1 KB");
+        let usage = Usage {
+            plan: "free".into(),
+            writes: 12,
+            writes_limit: 300,
+            bytes: 431_000_000,
+            bytes_limit: 500_000_000,
+            keep_days: 7,
+            measured_ms: None,
+        };
+        assert_eq!(
+            describe_usage(&usage),
+            "Plan: free\nWrites this month: 12 of 300\nStorage: 431 MB of 500 MB\nRemoved content is kept 7 days."
+        );
+    }
 
     #[test]
     fn whoami_says_what_the_login_may_do() {
