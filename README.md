@@ -31,7 +31,9 @@ is yours is allowing the login.
 
 ```sh
 matrical login                # opens your browser, or scan the QR code with your phone
-matrical space create team    # prints the new space's id
+matrical whoami               # who you are, and what this login may do
+matrical space list           # the spaces this login reaches, each with its id
+matrical space create team    # prints the new space's id, if this login may create spaces
 matrical space use team       # choose a space by name or by id
 matrical write "Pricing study" --tags research,pricing < study.md
 matrical write "Pricing study" --file study.md --cover cover.png
@@ -43,6 +45,7 @@ matrical write "research/2026/Pricing study" --file study.md   # into a folder, 
 matrical tree --depth 2       # how the space is filed
 matrical ls research          # what is in one folder
 matrical mv "research/2026/Pricing study" archive/
+matrical usage                # writes and storage left on the plan
 matrical guide                # what an agent needs to know
 ```
 
@@ -54,8 +57,10 @@ in at once: the browser on this machine, or a QR code to scan with your phone, w
 use over SSH or on a machine with no browser. The phone shows a code; allow it only if it matches
 the one in your terminal. Make an account on either if you need one.
 
-Each login is a CLI token named after this machine, or after `--name`. In Settings, on the web or in
-the iPhone app, you can rename it, limit it to some spaces to read or to write, or revoke it.
+Each login is a CLI token. Whoever allows it names it (this machine's name, or `--name`, is offered)
+and chooses the spaces it reaches, to read or to write, and whether it may create spaces. In
+Settings, on the web or in the iPhone app, they can change that later or revoke it. Deleting a space
+and changing who is in one are only ever done there, never from the CLI.
 
 What a login publishes is credited to its name. `matrical write ... --author "Research agent"` credits
 one item to someone else, so several agents can share a login and still be told apart.
